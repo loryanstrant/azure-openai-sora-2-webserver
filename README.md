@@ -1,13 +1,13 @@
-# Azure OpenAI Sora Video Generator Web Server
+# Azure OpenAI Sora 2 Video Generator Web Server
 
-A production-ready, containerized web server that connects to Azure OpenAI's Sora model to generate videos. This application provides both a modern web interface and RESTful API endpoints for video generation.
+A production-ready, containerized web server that connects to Azure OpenAI's Sora 2 model to generate videos. This application provides both a modern web interface and RESTful API endpoints for video generation.
 
 ## 🚀 Features
 
 - **Modern FastAPI Web Server**: Built with FastAPI using modern async patterns and lifespan handlers
 - **Web Interface**: Intuitive HTML/CSS/JavaScript frontend for easy video generation
 - **RESTful API**: Complete API with automatic documentation via FastAPI
-- **Azure OpenAI Integration**: Seamless connection to Azure OpenAI Sora video generation
+- **Azure OpenAI Integration**: Seamless connection to Azure OpenAI Sora 2 video generation
 - **Containerized**: Multi-stage Docker build with security best practices
 - **Comprehensive Testing**: Unit, integration, and API tests with mocking
 - **Code Quality**: Linting, formatting, and type checking with Ruff and Black
@@ -19,7 +19,7 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 - Python 3.11+
 - Docker (for containerized deployment)
-- Azure OpenAI account with Sora access
+- Azure OpenAI account with Sora 2 access
 - Azure OpenAI API key and endpoint
 
 ## 🔧 Environment Variables
@@ -28,7 +28,7 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 |----------|-------------|----------|---------|
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | Yes | - |
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL | Yes | - |
-| `AZURE_OPENAI_API_VERSION` | API version | No | `2024-08-01-preview` |
+| `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
 
 ## 🏗️ Installation & Setup
 
@@ -49,7 +49,7 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
    ```bash
    export AZURE_OPENAI_API_KEY="your-api-key"
    export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/"
-   export AZURE_OPENAI_API_VERSION="2024-08-01-preview"
+   export AZURE_OPENAI_DEPLOYMENT="sora-2"
    ```
 
 4. **Run the application**
@@ -103,8 +103,8 @@ docker run -d \
 
 1. Navigate to http://localhost:8000
 2. Enter your video description in the prompt field
-3. Select resolution (1920x1080, 1280x720, or 1080x1920)
-4. Set duration (1-30 seconds)
+3. Select resolution (1280x720 landscape or 720x1280 portrait)
+4. Set duration (4, 8, or 12 seconds)
 5. Click "Generate Video"
 6. Monitor progress and view the generated video
 
@@ -117,8 +117,8 @@ Content-Type: application/json
 
 {
   "prompt": "A beautiful sunset over the ocean",
-  "resolution": "1920x1080",
-  "duration": 5
+  "resolution": "1280x720",
+  "seconds": 4
 }
 ```
 
@@ -269,6 +269,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Azure OpenAI for providing Sora video generation capabilities
+- Azure OpenAI for providing Sora 2 video generation capabilities
 - FastAPI for the excellent web framework
 - The Python community for outstanding tooling and libraries
+
+## 📝 Sora 2 API Notes
+
+This application uses the Azure OpenAI Sora 2 API, which provides the following features:
+
+- **Model**: `sora-2` (configurable via `AZURE_OPENAI_DEPLOYMENT`)
+- **Video Durations**: 4, 8, or 12 seconds per generation
+- **Resolutions**: 
+  - Landscape: 1280x720
+  - Portrait: 720x1280
+- **API Endpoints**:
+  - `client.videos.create()` - Start video generation
+  - `client.videos.retrieve()` - Check generation status
+  - `client.videos.download_content()` - Download completed video
+- **Status Values**: `queued`, `in_progress`, `completed`, `failed`, `cancelled`
+
+For more information, see the [Microsoft documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation).

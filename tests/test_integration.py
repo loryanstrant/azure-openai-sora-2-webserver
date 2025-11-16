@@ -36,7 +36,7 @@ def test_root_endpoint_serves_web_interface(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Azure OpenAI Sora Video Generator" in response.text
+    assert "Azure OpenAI Sora 2 Video Generator" in response.text
 
 
 def test_generate_video_integration(client):
@@ -211,4 +211,4 @@ def test_static_file_serving(client):
     response = client.get("/static/index.html")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Azure OpenAI Sora Video Generator" in response.text
+    assert "Azure OpenAI Sora 2 Video Generator" in response.text

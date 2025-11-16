@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure OpenAI Sora Video Generator</title>
+    <title>Azure OpenAI Sora 2 Video Generator</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -139,7 +139,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎥 Azure OpenAI Sora Video Generator</h1>
+        <h1>🎥 Azure OpenAI Sora 2 Video Generator</h1>
         
         <form id="videoForm">
             <div class="form-group">
@@ -156,22 +156,18 @@
                 <div class="form-group">
                     <label for="resolution">Resolution</label>
                     <select id="resolution" name="resolution">
-                        <option value="1920x1080">1920x1080 (HD)</option>
-                        <option value="1280x720">1280x720 (HD Ready)</option>
-                        <option value="1080x1920">1080x1920 (Vertical)</option>
+                        <option value="1280x720">1280x720 (Landscape)</option>
+                        <option value="720x1280">720x1280 (Portrait)</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="duration">Duration (seconds)</label>
-                    <input 
-                        type="number" 
-                        id="duration" 
-                        name="duration" 
-                        min="1" 
-                        max="30" 
-                        value="5"
-                    >
+                    <label for="seconds">Duration (seconds)</label>
+                    <select id="seconds" name="seconds">
+                        <option value="4" selected>4 seconds</option>
+                        <option value="8">8 seconds</option>
+                        <option value="12">12 seconds</option>
+                    </select>
                 </div>
             </div>
             
@@ -276,7 +272,7 @@
             const data = {
                 prompt: formData.get('prompt'),
                 resolution: formData.get('resolution'),
-                duration: parseInt(formData.get('duration'))
+                seconds: parseInt(formData.get('seconds'))
             };
             
             generateBtn.disabled = true;
