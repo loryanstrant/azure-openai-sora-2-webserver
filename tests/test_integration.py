@@ -11,7 +11,7 @@ from app.main import app
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for integration tests."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
+    with patch("app.services.azure_openai.OpenAI"):
         # Create a mock service instance
         mock_service = MagicMock()
 
@@ -48,8 +48,8 @@ def test_generate_video_integration(client):
         "/generate",
         json={
             "prompt": "A beautiful sunset over the ocean",
-            "resolution": "1920x1080",
-            "duration": 5,
+            "resolution": "1280x720",
+            "seconds": 4,
         },
     )
 
@@ -71,15 +71,15 @@ def test_generate_video_validation_errors(client):
         json={
             "prompt": "Test prompt",
             "resolution": "invalid-resolution",
-            "duration": 5,
+            "seconds": 4,
         },
     )
     assert response.status_code == 422
 
-    # Invalid duration
+    # Invalid seconds (negative)
     response = client.post(
         "/generate",
-        json={"prompt": "Test prompt", "resolution": "1920x1080", "duration": -1},
+        json={"prompt": "Test prompt", "resolution": "1280x720", "seconds": -1},
     )
     assert response.status_code == 422
 
@@ -123,7 +123,7 @@ def test_api_error_handling(client):
 
     response = client.post(
         "/generate",
-        json={"prompt": "Test prompt", "resolution": "1920x1080", "duration": 5},
+        json={"prompt": "Test prompt", "resolution": "1280x720", "seconds": 4},
     )
 
     assert response.status_code == 500
@@ -159,7 +159,7 @@ def test_complete_video_workflow_simulation(client):
         json={
             "prompt": "A cat playing with yarn",
             "resolution": "1280x720",
-            "duration": 3,
+            "seconds": 4,
         },
     )
 
