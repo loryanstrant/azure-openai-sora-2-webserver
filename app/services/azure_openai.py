@@ -36,19 +36,28 @@ class AzureOpenAIService:
                 f"Got: {endpoint}"
             )
 
+        # Model deployment name
+        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
+
         # Ensure endpoint ends with /
         if not endpoint.endswith("/"):
             endpoint = f"{endpoint}/"
 
-        # Model deployment name
-        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
+        # For Azure OpenAI, we need to include the deployment in the endpoint URL
+        # The SDK expects: https://{endpoint}/openai/deployments/{deployment}/
+        if "/openai/" not in endpoint:
+            # Add /openai/ if not present
+            endpoint = f"{endpoint}openai/"
+
+        # Add deployments path if not already present
+        if "/deployments/" not in endpoint:
+            endpoint = f"{endpoint}deployments/{self.model}/"
 
         # Initialize AzureOpenAI client
         self.client = AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
             api_version=api_version,
-            azure_deployment=self.model,
         )
 
         # Log configuration (mask API key)
