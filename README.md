@@ -27,8 +27,9 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | Yes | - |
-| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL | Yes | - |
+| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`) | Yes | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
+| `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
 
 ## 🏗️ Installation & Setup
 
@@ -76,8 +77,11 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
      -p 8000:8000 \
      -e AZURE_OPENAI_API_KEY="your-api-key" \
      -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
+     -e TZ="America/New_York" \
      azure-openai-sora-webserver
    ```
+
+   **Note**: Set `TZ` to your local timezone for accurate log timestamps (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `UTC` if not specified.
 
 3. **Access the application**
    - Web Interface: http://localhost:8000
@@ -94,6 +98,7 @@ docker run -d \
   -p 8000:8000 \
   -e AZURE_OPENAI_API_KEY="your-api-key" \
   -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
+  -e TZ="America/New_York" \
   ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
 ```
 

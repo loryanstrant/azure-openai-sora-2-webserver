@@ -24,6 +24,13 @@ class AzureOpenAIService:
         if not api_key:
             raise ValueError("AZURE_OPENAI_API_KEY environment variable is required")
 
+        # Ensure endpoint has proper protocol (http:// or https://)
+        if not endpoint.startswith(("http://", "https://")):
+            raise ValueError(
+                "AZURE_OPENAI_ENDPOINT must start with 'http://' or 'https://'. "
+                f"Got: {endpoint}"
+            )
+
         # Ensure endpoint ends with /
         if not endpoint.endswith("/"):
             endpoint = f"{endpoint}/"
