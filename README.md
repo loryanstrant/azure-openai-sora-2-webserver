@@ -29,6 +29,7 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | Yes | - |
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`) | Yes | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version for video generation | No | `2024-08-01-preview` |
 | `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
 
 ## 🏗️ Installation & Setup

@@ -11,7 +11,7 @@ from app.services.azure_openai import AzureOpenAIService
 @pytest.fixture
 def azure_service(mock_env_vars):
     """Create an Azure OpenAI service instance for testing."""
-    with patch("app.services.azure_openai.OpenAI"):
+    with patch("app.services.azure_openai.AzureOpenAI"):
         service = AzureOpenAIService()
         # Mock the client.videos methods
         service.client = MagicMock()

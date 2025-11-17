@@ -12,7 +12,7 @@ from app.main import app
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for the FastAPI app."""
-    with patch("app.services.azure_openai.OpenAI"):
+    with patch("app.services.azure_openai.AzureOpenAI"):
         return TestClient(app)
 
 
@@ -27,7 +27,7 @@ def test_health_endpoint(client):
 
 def test_lifespan_startup_shutdown(mock_env_vars):
     """Test that the lifespan event properly initializes and cleans up."""
-    with patch("app.services.azure_openai.OpenAI"):
+    with patch("app.services.azure_openai.AzureOpenAI"):
         with TestClient(app) as client:
             # The lifespan context should have initialized the service
             response = client.get("/health")
@@ -41,7 +41,7 @@ def test_no_deprecation_warnings(mock_env_vars):
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
 
-        with patch("app.services.azure_openai.OpenAI"):
+        with patch("app.services.azure_openai.AzureOpenAI"):
             TestClient(app)
 
         # Check that no deprecation warnings were raised for on_event
