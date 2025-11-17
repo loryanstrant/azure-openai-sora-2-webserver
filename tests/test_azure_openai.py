@@ -11,12 +11,14 @@ from app.services.azure_openai import AzureOpenAIService
 @pytest.fixture
 def azure_service(mock_env_vars):
     """Create an Azure OpenAI service instance for testing."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
+    with patch("app.services.azure_openai.OpenAI"):
         service = AzureOpenAIService()
-        # Mock nested client.videos.generate for all tests
+        # Mock the client.videos methods
         service.client = MagicMock()
         service.client.videos = MagicMock()
-        service.client.videos.generate = MagicMock()
+        service.client.videos.create = MagicMock()
+        service.client.videos.retrieve = MagicMock()
+        service.client.videos.download_content = MagicMock()
         return service
 
 
@@ -25,8 +27,8 @@ async def test_generate_video_success(azure_service: AzureOpenAIService):
     """Test successful video generation."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
-        resolution=VideoResolution.RES_1920x1080,
-        duration=5,
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
     )
 
     with patch.object(azure_service, "_generate_video_async") as mock_async:
@@ -40,46 +42,83 @@ async def test_generate_video_success(azure_service: AzureOpenAIService):
 
 
 def test_call_sora_api_success(azure_service: AzureOpenAIService):
-    """Test successful Sora API call."""
+    """Test successful Sora 2 API call."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
-        resolution=VideoResolution.RES_1920x1080,
-        duration=5,
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
     )
 
-    # Mock the API response
-    mock_video_data = MagicMock()
-    mock_video_data.url = "http://example.com/video.mp4"
-    mock_video_data.revised_prompt = "A beautiful sunset over calm waters"
+    # Mock the API response for Sora 2
+    mock_video = MagicMock()
+    mock_video.id = "video_123456"
+    mock_video.status = "queued"
+    mock_video.progress = 0
 
-    mock_response = MagicMock()
-    mock_response.data = [mock_video_data]
-
-    azure_service.client.videos.generate.return_value = mock_response
+    azure_service.client.videos.create.return_value = mock_video
 
     result = azure_service._call_sora_api(request)
 
     assert result is not None
-    assert result["video_url"] == "http://example.com/video.mp4"
-    assert result["revised_prompt"] == "A beautiful sunset over calm waters"
+    assert result["id"] == "video_123456"
+    assert result["status"] == "queued"
 
     # Verify the API was called with correct parameters
-    azure_service.client.videos.generate.assert_called_once()
+    azure_service.client.videos.create.assert_called_once_with(
+        model="sora-2",
+        prompt="A beautiful sunset",
+        size="1280x720",
+        seconds="4",
+    )
 
 
 def test_call_sora_api_failure(azure_service: AzureOpenAIService):
-    """Test Sora API call failure."""
+    """Test Sora 2 API call failure."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
-        resolution=VideoResolution.RES_1920x1080,
-        duration=5,
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
     )
 
     # Mock API exception
-    azure_service.client.videos.generate.side_effect = Exception("API Error")
+    azure_service.client.videos.create.side_effect = Exception("API Error")
 
     with pytest.raises(Exception, match="API Error"):
         azure_service._call_sora_api(request)
+
+
+def test_call_sora_api_with_input_image(azure_service: AzureOpenAIService):
+    """Test Sora 2 API call with input reference image."""
+    # Create a mock image data
+    mock_image_data = b"fake_image_data"
+
+    request = VideoGenerationRequest(
+        prompt="Continue the scene",
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
+        input_image_data=mock_image_data,
+    )
+
+    # Mock the API response for Sora 2
+    mock_video = MagicMock()
+    mock_video.id = "video_with_image_123"
+    mock_video.status = "queued"
+    mock_video.progress = 0
+
+    azure_service.client.videos.create.return_value = mock_video
+
+    result = azure_service._call_sora_api(request)
+
+    assert result is not None
+    assert result["id"] == "video_with_image_123"
+    assert result["status"] == "queued"
+
+    # Verify the API was called with input_reference parameter
+    call_args = azure_service.client.videos.create.call_args
+    assert call_args is not None
+    assert "input_reference" in call_args.kwargs
+    # Check that input_reference is a file-like object
+    assert hasattr(call_args.kwargs["input_reference"], "read")
 
 
 def test_get_video_status_existing(azure_service: AzureOpenAIService):

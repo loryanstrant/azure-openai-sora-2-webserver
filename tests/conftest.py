@@ -13,7 +13,7 @@ def mock_env_vars():
         {
             "AZURE_OPENAI_API_KEY": "test-api-key",
             "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-            "AZURE_OPENAI_API_VERSION": "2024-08-01-preview",
+            "AZURE_OPENAI_DEPLOYMENT": "sora-2",
         },
     ):
         yield

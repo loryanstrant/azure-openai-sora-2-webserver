@@ -11,7 +11,7 @@ from app.main import app
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for integration tests."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
+    with patch("app.services.azure_openai.OpenAI"):
         # Create a mock service instance
         mock_service = MagicMock()
 
@@ -36,20 +36,20 @@ def test_root_endpoint_serves_web_interface(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Azure OpenAI Sora Video Generator" in response.text
+    assert "Azure OpenAI Sora 2 Video Generator" in response.text
 
 
 def test_generate_video_integration(client):
     """Test complete video generation workflow integration."""
     # The async mock is already set up in the fixture
 
-    # Test video generation request
+    # Test video generation request with form data
     response = client.post(
         "/generate",
-        json={
+        data={
             "prompt": "A beautiful sunset over the ocean",
-            "resolution": "1920x1080",
-            "duration": 5,
+            "resolution": "1280x720",
+            "seconds": "4",
         },
     )
 
@@ -62,24 +62,24 @@ def test_generate_video_integration(client):
 def test_generate_video_validation_errors(client):
     """Test video generation with invalid input."""
     # Missing required fields
-    response = client.post("/generate", json={})
+    response = client.post("/generate", data={})
     assert response.status_code == 422
 
     # Invalid resolution
     response = client.post(
         "/generate",
-        json={
+        data={
             "prompt": "Test prompt",
             "resolution": "invalid-resolution",
-            "duration": 5,
+            "seconds": "4",
         },
     )
     assert response.status_code == 422
 
-    # Invalid duration
+    # Invalid seconds (negative)
     response = client.post(
         "/generate",
-        json={"prompt": "Test prompt", "resolution": "1920x1080", "duration": -1},
+        data={"prompt": "Test prompt", "resolution": "1280x720", "seconds": "-1"},
     )
     assert response.status_code == 422
 
@@ -123,7 +123,7 @@ def test_api_error_handling(client):
 
     response = client.post(
         "/generate",
-        json={"prompt": "Test prompt", "resolution": "1920x1080", "duration": 5},
+        data={"prompt": "Test prompt", "resolution": "1280x720", "seconds": "4"},
     )
 
     assert response.status_code == 500
@@ -156,10 +156,10 @@ def test_complete_video_workflow_simulation(client):
     # Step 1: Generate video
     response = client.post(
         "/generate",
-        json={
+        data={
             "prompt": "A cat playing with yarn",
             "resolution": "1280x720",
-            "duration": 3,
+            "seconds": "4",
         },
     )
 
@@ -211,4 +211,50 @@ def test_static_file_serving(client):
     response = client.get("/static/index.html")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Azure OpenAI Sora Video Generator" in response.text
+    assert "Azure OpenAI Sora 2 Video Generator" in response.text
+
+
+def test_generate_video_with_input_image(client):
+    """Test video generation with input reference image."""
+    from io import BytesIO
+
+    # Create a mock image file
+    mock_image = BytesIO(b"fake_image_data")
+    mock_image.name = "test_image.jpg"
+
+    response = client.post(
+        "/generate",
+        data={
+            "prompt": "Continue this scene",
+            "resolution": "1280x720",
+            "seconds": "4",
+        },
+        files={"input_image": ("test.jpg", mock_image, "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "video_id" in data
+    assert data["status"] == "pending"
+
+
+def test_generate_video_with_invalid_image_type(client):
+    """Test video generation with invalid image type."""
+    from io import BytesIO
+
+    # Create a mock file with invalid type
+    mock_file = BytesIO(b"fake_pdf_data")
+    mock_file.name = "test.pdf"
+
+    response = client.post(
+        "/generate",
+        data={
+            "prompt": "Test prompt",
+            "resolution": "1280x720",
+            "seconds": "4",
+        },
+        files={"input_image": ("test.pdf", mock_file, "application/pdf")},
+    )
+
+    assert response.status_code == 422
+    assert "Invalid image type" in response.json()["detail"]
