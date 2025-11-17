@@ -355,9 +355,7 @@ def test_azure_service_validates_endpoint_protocol():
         },
         clear=True,
     ):
-        with pytest.raises(
-            ValueError, match="must start with 'http://' or 'https://'"
-        ):
+        with pytest.raises(ValueError, match="must start with 'http://' or 'https://'"):
             AzureOpenAIService()
 
     # Test with valid https:// endpoint - should not raise
