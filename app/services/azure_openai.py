@@ -95,7 +95,7 @@ class AzureOpenAIService:
             "model": self.model,
             "prompt": request.prompt,
             "size": request.resolution.value,
-            "seconds": str(request.seconds),
+            "duration": str(request.seconds),
         }
 
         # Add input_reference if provided
