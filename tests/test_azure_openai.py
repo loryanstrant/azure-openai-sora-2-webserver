@@ -231,3 +231,32 @@ def test_call_sora_api_logging(azure_service: AzureOpenAIService, caplog):
         assert any(
             "Video ID: test-video-id" in record.message for record in caplog.records
         )
+
+
+def test_azure_service_initializes_with_deployment(mock_env_vars):
+    """Test that AzureOpenAI client is initialized with azure_deployment parameter.
+
+    This test verifies the fix for the 404 error where the URL path was missing
+    the deployment name. The azure_deployment parameter ensures URLs are constructed
+    as /openai/deployments/{deployment-name}/videos instead of /openai/videos.
+    """
+    with patch("app.services.azure_openai.AzureOpenAI") as mock_azure_openai:
+        mock_client = MagicMock()
+        mock_azure_openai.return_value = mock_client
+
+        _ = AzureOpenAIService()
+
+        # Verify AzureOpenAI was called once
+        mock_azure_openai.assert_called_once()
+
+        # Get the call arguments
+        call_kwargs = mock_azure_openai.call_args.kwargs
+
+        # Verify azure_deployment parameter is present and set correctly
+        assert "azure_deployment" in call_kwargs
+        assert call_kwargs["azure_deployment"] == "sora-2"
+
+        # Verify other required parameters are also present
+        assert call_kwargs["api_key"] == "test-api-key"
+        assert call_kwargs["azure_endpoint"] == "https://test.openai.azure.com/"
+        assert call_kwargs["api_version"] == "2024-08-01-preview"
