@@ -11,7 +11,7 @@ from app.main import app
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for integration tests."""
-    with patch("app.services.azure_openai.OpenAI"):
+    with patch("app.services.azure_openai.AzureOpenAI"):
         # Create a mock service instance
         mock_service = MagicMock()
 
@@ -333,7 +333,7 @@ def test_azure_service_requires_environment_variables():
         },
         clear=True,
     ):
-        with patch("app.services.azure_openai.OpenAI"):
+        with patch("app.services.azure_openai.AzureOpenAI"):
             service = AzureOpenAIService()
             assert service is not None
 
@@ -367,7 +367,7 @@ def test_azure_service_validates_endpoint_protocol():
         },
         clear=True,
     ):
-        with patch("app.services.azure_openai.OpenAI"):
+        with patch("app.services.azure_openai.AzureOpenAI"):
             service = AzureOpenAIService()
             assert service is not None
 
@@ -380,6 +380,6 @@ def test_azure_service_validates_endpoint_protocol():
         },
         clear=True,
     ):
-        with patch("app.services.azure_openai.OpenAI"):
+        with patch("app.services.azure_openai.AzureOpenAI"):
             service = AzureOpenAIService()
             assert service is not None

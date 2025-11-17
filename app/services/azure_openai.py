@@ -5,7 +5,7 @@ import os
 import uuid
 from typing import Any
 
-from openai import OpenAI
+from openai import AzureOpenAI
 
 from ..models import VideoGenerationRequest, VideoStatus
 
@@ -17,6 +17,7 @@ class AzureOpenAIService:
         """Initialize the Azure OpenAI service."""
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
 
         # Validate required environment variables
         if not endpoint:
@@ -35,11 +36,11 @@ class AzureOpenAIService:
         if not endpoint.endswith("/"):
             endpoint = f"{endpoint}/"
 
-        # Initialize OpenAI client with Azure endpoint
-        self.client = OpenAI(
+        # Initialize AzureOpenAI client
+        self.client = AzureOpenAI(
             api_key=api_key,
-            base_url=f"{endpoint}openai/v1/",
-            default_headers={"api-key": api_key} if api_key else None,
+            azure_endpoint=endpoint,
+            api_version=api_version,
         )
 
         # Model deployment name
