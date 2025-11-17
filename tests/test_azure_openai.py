@@ -179,9 +179,7 @@ def test_service_initialization_logging(mock_env_vars, caplog):
                 "Endpoint: https://test.openai.azure.com/" in record.message
                 for record in caplog.records
             )
-            assert any(
-                "Model: sora-2" in record.message for record in caplog.records
-            )
+            assert any("Model: sora-2" in record.message for record in caplog.records)
             # Check that API key is masked (either *** for short keys or partial masking for long keys)
             assert any(
                 "API Key:" in record.message and "***" in record.message
@@ -221,7 +219,9 @@ def test_call_sora_api_logging(azure_service: AzureOpenAIService, caplog):
             "Prompt: 'A beautiful sunset'" in record.message
             for record in caplog.records
         )
-        assert any("Resolution: 1280x720" in record.message for record in caplog.records)
+        assert any(
+            "Resolution: 1280x720" in record.message for record in caplog.records
+        )
         assert any("Duration: 4s" in record.message for record in caplog.records)
 
         # Check that response was logged
