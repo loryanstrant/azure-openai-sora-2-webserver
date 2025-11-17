@@ -23,7 +23,28 @@
         h1 {
             color: #333;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
+        }
+        
+        .header-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .header-info a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        .header-info a:hover {
+            text-decoration: underline;
+        }
+        
+        .version {
+            color: #999;
+            font-size: 12px;
         }
         
         .form-group {
@@ -140,6 +161,13 @@
 <body>
     <div class="container">
         <h1>🎥 Azure OpenAI Sora 2 Video Generator</h1>
+        <div class="header-info">
+            <span class="version" id="versionInfo">Loading version...</span>
+            <br>
+            <a href="https://github.com/loryanstrant/azure-openai-sora-webserver" target="_blank" rel="noopener noreferrer">
+                📦 GitHub Repository
+            </a>
+        </div>
         
         <form id="videoForm">
             <div class="form-group">
@@ -214,6 +242,21 @@
         
         let currentVideoId = null;
         let pollInterval = null;
+        
+        // Fetch and display version
+        async function fetchVersion() {
+            try {
+                const response = await fetch('/version');
+                const data = await response.json();
+                document.getElementById('versionInfo').textContent = `v${data.version}`;
+            } catch (error) {
+                console.error('Failed to fetch version:', error);
+                document.getElementById('versionInfo').textContent = 'v1.0.0';
+            }
+        }
+        
+        // Fetch version on page load
+        fetchVersion();
         
         function showStatus(message, type = 'info') {
             status.className = `status ${type}`;

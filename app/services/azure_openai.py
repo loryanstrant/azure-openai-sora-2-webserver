@@ -1,6 +1,7 @@
 """Azure OpenAI service for video generation using Sora 2."""
 
 import asyncio
+import logging
 import os
 import uuid
 from typing import Any
@@ -8,6 +9,9 @@ from typing import Any
 from openai import AzureOpenAI
 
 from ..models import VideoGenerationRequest, VideoStatus
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class AzureOpenAIService:
@@ -46,6 +50,14 @@ class AzureOpenAIService:
         # Model deployment name
         self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
 
+        # Log configuration (mask API key)
+        masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        logger.info(
+            f"Azure OpenAI Service initialized - "
+            f"Endpoint: {endpoint}, API Version: {api_version}, "
+            f"Model: {self.model}, API Key: {masked_key}"
+        )
+
         self.video_jobs: dict[str, VideoStatus] = {}
 
     async def generate_video(self, request: VideoGenerationRequest) -> str:
@@ -71,6 +83,8 @@ class AzureOpenAIService:
             self.video_jobs[video_id].status = "queued"
             self.video_jobs[video_id].progress = 10
 
+            logger.info(f"Starting video generation - Video ID: {video_id}")
+
             # Call Sora 2 API
             video_response = self._call_sora_api(request)
 
@@ -85,7 +99,9 @@ class AzureOpenAIService:
         except Exception as e:
             self.video_jobs[video_id].status = "failed"
             self.video_jobs[video_id].progress = 0
-            print(f"Error generating video: {e}")
+            logger.error(
+                f"Error generating video - Video ID: {video_id}, Error type: {type(e).__name__}, Error: {e}"
+            )
             raise e
 
     def _call_sora_api(self, request: VideoGenerationRequest) -> dict[str, Any]:
@@ -106,18 +122,57 @@ class AzureOpenAIService:
             image_file = io.BytesIO(request.input_image_data)
             api_params["input_reference"] = image_file
 
-        response = self.client.videos.create(**api_params)
+            logger.info(
+                f"Calling Sora API with image-to-video - "
+                f"Model: {self.model}, Prompt: '{request.prompt}', "
+                f"Resolution: {request.resolution.value}, Duration: {request.seconds}s, "
+                f"Image size: {len(request.input_image_data)} bytes"
+            )
+        else:
+            logger.info(
+                f"Calling Sora API with text-to-video - "
+                f"Model: {self.model}, Prompt: '{request.prompt}', "
+                f"Resolution: {request.resolution.value}, Duration: {request.seconds}s"
+            )
 
-        return {
-            "id": response.id,
-            "status": response.status,
-            "progress": getattr(response, "progress", 0),
-        }
+        try:
+            # Log the actual API endpoint being called
+            logger.debug(
+                f"Azure OpenAI API endpoint: {self.client.base_url}, "
+                f"API version: {self.client._custom_query['api-version']}"
+            )
+
+            response = self.client.videos.create(**api_params)
+
+            # Log successful response
+            logger.info(
+                f"Sora API response received - "
+                f"Video ID: {response.id}, Status: {response.status}, "
+                f"Progress: {getattr(response, 'progress', 0)}"
+            )
+
+            return {
+                "id": response.id,
+                "status": response.status,
+                "progress": getattr(response, "progress", 0),
+            }
+        except Exception as e:
+            # Log detailed error information
+            logger.error(
+                f"Sora API call failed - "
+                f"Error type: {type(e).__name__}, Error: {str(e)}, "
+                f"Model: {self.model}, Prompt: '{request.prompt}'"
+            )
+            raise
 
     async def _poll_video_status(self, video_id: str, azure_video_id: str) -> None:
         """Poll Azure API for video completion status."""
         max_polls = 120  # Maximum number of polls (20 minutes at 10s intervals)
         poll_count = 0
+
+        logger.info(
+            f"Starting to poll video status - Video ID: {video_id}, Azure Video ID: {azure_video_id}"
+        )
 
         while poll_count < max_polls:
             try:
@@ -126,11 +181,18 @@ class AzureOpenAIService:
                 poll_count += 1
 
                 # Get video status from Azure
+                logger.debug(
+                    f"Polling video status (attempt {poll_count}/{max_polls}) - Azure Video ID: {azure_video_id}"
+                )
                 video = self.client.videos.retrieve(azure_video_id)
 
                 # Update job status
                 status = video.status
                 self.video_jobs[video_id].status = status
+
+                logger.info(
+                    f"Video status update - Video ID: {video_id}, Status: {status}, Poll: {poll_count}"
+                )
 
                 # Calculate progress based on status
                 if status == "queued":
@@ -140,6 +202,7 @@ class AzureOpenAIService:
                     self.video_jobs[video_id].progress = min(20 + poll_count * 2, 90)
                 elif status == "completed":
                     self.video_jobs[video_id].progress = 100
+                    logger.info(f"Video generation completed - Video ID: {video_id}")
                     # Download the video
                     try:
                         _ = self.client.videos.download_content(
@@ -150,15 +213,23 @@ class AzureOpenAIService:
                         self.video_jobs[video_id].video_url = (
                             f"data:video/mp4;base64,{video_id}"
                         )
+                        logger.info(
+                            f"Video downloaded successfully - Video ID: {video_id}"
+                        )
                     except Exception as e:
-                        print(f"Error downloading video: {e}")
+                        logger.error(
+                            f"Error downloading video - Video ID: {video_id}, Error: {e}"
+                        )
                     break
                 elif status in ["failed", "cancelled"]:
                     self.video_jobs[video_id].progress = 0
+                    logger.error(f"Video generation {status} - Video ID: {video_id}")
                     break
 
             except Exception as e:
-                print(f"Error polling video status: {e}")
+                logger.error(
+                    f"Error polling video status - Video ID: {video_id}, Azure Video ID: {azure_video_id}, Error type: {type(e).__name__}, Error: {e}"
+                )
                 self.video_jobs[video_id].status = "failed"
                 self.video_jobs[video_id].progress = 0
                 break

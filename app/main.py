@@ -1,5 +1,6 @@
 """FastAPI application for Azure OpenAI Sora video generation."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -8,6 +9,16 @@ from fastapi.staticfiles import StaticFiles
 
 from .models import VideoGenerationRequest, VideoResolution, VideoStatus
 from .services.azure_openai import AzureOpenAIService
+
+# Application version
+__version__ = "1.0.0"
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Global service instance
 azure_service = None
@@ -19,15 +30,18 @@ async def lifespan(app: FastAPI):
     # Startup
     global azure_service
     azure_service = AzureOpenAIService()
+    logger.info(f"Starting Azure OpenAI Sora Web Server v{__version__}...")
     print("Starting Azure OpenAI Sora Web Server...")
 
     yield
 
     # Shutdown
+    logger.info("Shutting down Azure OpenAI Sora Web Server...")
     print("Shutting down Azure OpenAI Sora Web Server...")
     # Clean up any pending tasks
     if azure_service:
         azure_service.cleanup_old_jobs()
+    logger.info("Cleanup completed.")
     print("Cleanup completed.")
 
 
@@ -35,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Azure OpenAI Sora Video Generator",
     description="A web server for generating videos using Azure OpenAI Sora",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -122,7 +136,13 @@ async def get_video_status(video_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "azure-openai-sora"}
+    return {"status": "healthy", "service": "azure-openai-sora", "version": __version__}
+
+
+@app.get("/version")
+async def version():
+    """Get application version."""
+    return {"version": __version__}
 
 
 if __name__ == "__main__":
