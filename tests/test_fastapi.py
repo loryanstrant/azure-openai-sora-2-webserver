@@ -23,6 +23,17 @@ def test_health_endpoint(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "azure-openai-sora"
+    assert "version" in data
+    assert data["version"] == "1.0.0"
+
+
+def test_version_endpoint(client):
+    """Test the version endpoint."""
+    response = client.get("/version")
+    assert response.status_code == 200
+    data = response.json()
+    assert "version" in data
+    assert data["version"] == "1.0.0"
 
 
 def test_lifespan_startup_shutdown(mock_env_vars):

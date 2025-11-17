@@ -1,5 +1,6 @@
 """Tests for Azure OpenAI service."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -161,3 +162,72 @@ def test_cleanup_old_jobs(azure_service: AzureOpenAIService):
 
     # Should keep only 50 most recent jobs
     assert len(azure_service.video_jobs) == 50
+
+
+def test_service_initialization_logging(mock_env_vars, caplog):
+    """Test that service initialization logs correctly."""
+    with patch("app.services.azure_openai.AzureOpenAI"):
+        with caplog.at_level(logging.INFO):
+            _ = AzureOpenAIService()
+
+            # Check that initialization log was created
+            assert any(
+                "Azure OpenAI Service initialized" in record.message
+                for record in caplog.records
+            )
+            assert any(
+                "Endpoint: https://test.openai.azure.com/" in record.message
+                for record in caplog.records
+            )
+            assert any(
+                "Model: sora-2" in record.message for record in caplog.records
+            )
+            # Check that API key is masked (either *** for short keys or partial masking for long keys)
+            assert any(
+                "API Key:" in record.message and "***" in record.message
+                for record in caplog.records
+            )
+            # Ensure full API key is NOT logged
+            assert not any(
+                "test-key-12345678" in record.message for record in caplog.records
+            )
+
+
+def test_call_sora_api_logging(azure_service: AzureOpenAIService, caplog):
+    """Test that API calls are logged with details."""
+    request = VideoGenerationRequest(
+        prompt="A beautiful sunset",
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
+    )
+
+    # Mock response
+    mock_response = MagicMock()
+    mock_response.id = "test-video-id"
+    mock_response.status = "queued"
+    azure_service.client.videos.create.return_value = mock_response
+    azure_service.client.base_url = "https://test.openai.azure.com/"
+    azure_service.client._custom_query = {"api-version": "2024-08-01-preview"}
+
+    with caplog.at_level(logging.INFO):
+        _ = azure_service._call_sora_api(request)
+
+        # Check that API call was logged
+        assert any(
+            "Calling Sora API with text-to-video" in record.message
+            for record in caplog.records
+        )
+        assert any(
+            "Prompt: 'A beautiful sunset'" in record.message
+            for record in caplog.records
+        )
+        assert any("Resolution: 1280x720" in record.message for record in caplog.records)
+        assert any("Duration: 4s" in record.message for record in caplog.records)
+
+        # Check that response was logged
+        assert any(
+            "Sora API response received" in record.message for record in caplog.records
+        )
+        assert any(
+            "Video ID: test-video-id" in record.message for record in caplog.records
+        )
