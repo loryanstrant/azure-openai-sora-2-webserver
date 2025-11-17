@@ -40,15 +40,16 @@ class AzureOpenAIService:
         if not endpoint.endswith("/"):
             endpoint = f"{endpoint}/"
 
+        # Model deployment name
+        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
+
         # Initialize AzureOpenAI client
         self.client = AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
             api_version=api_version,
+            azure_deployment=self.model,
         )
-
-        # Model deployment name
-        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
 
         # Log configuration (mask API key)
         masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
