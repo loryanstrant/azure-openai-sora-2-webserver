@@ -54,7 +54,7 @@ async def generate_video(
     prompt: str = Form(...),
     resolution: str = Form(default="1280x720"),
     seconds: int = Form(default=4),
-    input_image: UploadFile | None = File(default=None),
+    input_image: UploadFile | str | None = File(default=None),
 ):
     """Generate a video using Azure OpenAI Sora.
 
@@ -76,17 +76,20 @@ async def generate_video(
 
         # Read image data if provided
         image_data = None
-        if input_image:
-            # Validate file type
-            content_type = input_image.content_type
-            if content_type not in ["image/jpeg", "image/png", "image/webp"]:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid image type: {content_type}. Must be JPEG, PNG, or WebP",
-                )
+        if input_image and not isinstance(input_image, str):
+            # If input_image is a string (empty filename from browser), treat as no file
+            # Only process if it's an actual UploadFile
+            if input_image.filename:
+                # Validate file type
+                content_type = input_image.content_type
+                if content_type not in ["image/jpeg", "image/png", "image/webp"]:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Invalid image type: {content_type}. Must be JPEG, PNG, or WebP",
+                    )
 
-            # Read the image data
-            image_data = await input_image.read()
+                # Read the image data
+                image_data = await input_image.read()
 
         # Create request object with validation
         try:

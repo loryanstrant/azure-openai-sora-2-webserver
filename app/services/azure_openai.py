@@ -18,8 +18,14 @@ class AzureOpenAIService:
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
+        # Validate required environment variables
+        if not endpoint:
+            raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is required")
+        if not api_key:
+            raise ValueError("AZURE_OPENAI_API_KEY environment variable is required")
+
         # Ensure endpoint ends with /
-        if endpoint and not endpoint.endswith("/"):
+        if not endpoint.endswith("/"):
             endpoint = f"{endpoint}/"
 
         # Initialize OpenAI client with Azure endpoint
