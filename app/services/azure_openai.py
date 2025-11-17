@@ -76,12 +76,23 @@ class AzureOpenAIService:
 
     def _call_sora_api(self, request: VideoGenerationRequest) -> dict[str, Any]:
         """Call the Sora 2 API for video generation."""
-        response = self.client.videos.create(
-            model=self.model,
-            prompt=request.prompt,
-            size=request.resolution.value,
-            seconds=str(request.seconds),
-        )
+        # Prepare API call parameters
+        api_params = {
+            "model": self.model,
+            "prompt": request.prompt,
+            "size": request.resolution.value,
+            "seconds": str(request.seconds),
+        }
+
+        # Add input_reference if provided
+        if request.input_image_data:
+            import io
+
+            # Create a file-like object from the image data
+            image_file = io.BytesIO(request.input_image_data)
+            api_params["input_reference"] = image_file
+
+        response = self.client.videos.create(**api_params)
 
         return {
             "id": response.id,

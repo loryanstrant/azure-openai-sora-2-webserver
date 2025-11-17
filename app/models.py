@@ -24,6 +24,11 @@ class VideoGenerationRequest(BaseModel):
     seconds: int = Field(
         default=4, description="Video duration in seconds (4, 8, or 12)"
     )
+    input_image_data: bytes | None = Field(
+        default=None,
+        description="Optional input reference image data for image-to-video generation",
+        exclude=True,
+    )
 
     @field_validator("seconds")
     @classmethod
@@ -37,6 +42,8 @@ class VideoGenerationRequest(BaseModel):
     def duration(self) -> int:
         """Backward compatibility property for duration."""
         return self.seconds
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class VideoStatus(BaseModel):

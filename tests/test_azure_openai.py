@@ -87,6 +87,40 @@ def test_call_sora_api_failure(azure_service: AzureOpenAIService):
         azure_service._call_sora_api(request)
 
 
+def test_call_sora_api_with_input_image(azure_service: AzureOpenAIService):
+    """Test Sora 2 API call with input reference image."""
+    # Create a mock image data
+    mock_image_data = b"fake_image_data"
+
+    request = VideoGenerationRequest(
+        prompt="Continue the scene",
+        resolution=VideoResolution.LANDSCAPE,
+        seconds=4,
+        input_image_data=mock_image_data,
+    )
+
+    # Mock the API response for Sora 2
+    mock_video = MagicMock()
+    mock_video.id = "video_with_image_123"
+    mock_video.status = "queued"
+    mock_video.progress = 0
+
+    azure_service.client.videos.create.return_value = mock_video
+
+    result = azure_service._call_sora_api(request)
+
+    assert result is not None
+    assert result["id"] == "video_with_image_123"
+    assert result["status"] == "queued"
+
+    # Verify the API was called with input_reference parameter
+    call_args = azure_service.client.videos.create.call_args
+    assert call_args is not None
+    assert "input_reference" in call_args.kwargs
+    # Check that input_reference is a file-like object
+    assert hasattr(call_args.kwargs["input_reference"], "read")
+
+
 def test_get_video_status_existing(azure_service: AzureOpenAIService):
     """Test getting status for existing video job."""
     from app.models import VideoStatus

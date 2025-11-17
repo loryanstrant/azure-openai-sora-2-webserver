@@ -105,22 +105,35 @@ docker run -d \
 2. Enter your video description in the prompt field
 3. Select resolution (1280x720 landscape or 720x1280 portrait)
 4. Set duration (4, 8, or 12 seconds)
-5. Click "Generate Video"
-6. Monitor progress and view the generated video
+5. **(Optional)** Upload a reference image for image-to-video generation
+6. Click "Generate Video"
+7. Monitor progress and view the generated video
 
 ### API Endpoints
 
-#### Generate Video
+#### Generate Video (Text-to-Video)
 ```bash
 POST /generate
-Content-Type: application/json
+Content-Type: multipart/form-data
 
-{
-  "prompt": "A beautiful sunset over the ocean",
-  "resolution": "1280x720",
-  "seconds": 4
-}
+prompt: "A beautiful sunset over the ocean"
+resolution: "1280x720"
+seconds: 4
 ```
+
+#### Generate Video (Image-to-Video)
+```bash
+POST /generate
+Content-Type: multipart/form-data
+
+prompt: "Continue this scene with smooth motion"
+resolution: "1280x720"
+seconds: 4
+input_image: <file upload>
+```
+
+**Supported image formats**: JPEG, PNG, WebP
+**Note**: The input image resolution must match the selected video resolution exactly.
 
 #### Check Video Status
 ```bash
@@ -282,6 +295,13 @@ This application uses the Azure OpenAI Sora 2 API, which provides the following 
 - **Resolutions**: 
   - Landscape: 1280x720
   - Portrait: 720x1280
+- **Generation Modes**:
+  - **Text-to-Video**: Generate videos from text prompts
+  - **Image-to-Video**: Animate still images by providing an input reference image
+- **Input Image Requirements**:
+  - Supported formats: JPEG, PNG, WebP
+  - Resolution must match the selected video resolution exactly
+  - Used as a visual anchor for the first frame
 - **API Endpoints**:
   - `client.videos.create()` - Start video generation
   - `client.videos.retrieve()` - Check generation status
