@@ -68,7 +68,7 @@ def test_call_sora_api_success(azure_service: AzureOpenAIService):
         model="sora-2",
         prompt="A beautiful sunset",
         size="1280x720",
-        seconds="4",
+        duration="4",
     )
 
 
