@@ -11,7 +11,7 @@ from .models import VideoGenerationRequest, VideoResolution, VideoStatus
 from .services.azure_openai import AzureOpenAIService
 
 # Application version
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # Configure logging
 logging.basicConfig(
