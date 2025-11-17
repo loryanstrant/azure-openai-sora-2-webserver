@@ -256,7 +256,10 @@ def test_azure_service_initializes_with_deployment(mock_env_vars):
         # Verify deployment is included in the endpoint URL
         assert "azure_endpoint" in call_kwargs
         assert "/openai/deployments/sora-2/" in call_kwargs["azure_endpoint"]
-        assert call_kwargs["azure_endpoint"] == "https://test.openai.azure.com/openai/deployments/sora-2/"
+        assert (
+            call_kwargs["azure_endpoint"]
+            == "https://test.openai.azure.com/openai/deployments/sora-2/"
+        )
 
         # Verify other required parameters are also present
         assert call_kwargs["api_key"] == "test-api-key"
