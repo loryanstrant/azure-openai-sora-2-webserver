@@ -258,3 +258,81 @@ def test_generate_video_with_invalid_image_type(client):
 
     assert response.status_code == 422
     assert "Invalid image type" in response.json()["detail"]
+
+
+def test_generate_video_with_empty_file_input(client):
+    """Test that empty file input (no file selected) is handled correctly.
+
+    This tests the fix for Issue #1 where browser submits empty file input
+    with application/octet-stream content type when no file is selected.
+    """
+    from io import BytesIO
+
+    # Test with empty filename (browser behavior when no file selected)
+    response = client.post(
+        "/generate",
+        data={
+            "prompt": "A beautiful sunset",
+            "resolution": "1280x720",
+            "seconds": "4",
+        },
+        files={"input_image": ("", BytesIO(b""), "application/octet-stream")},
+    )
+
+    # Should succeed - empty file is treated as no file
+    assert response.status_code == 200
+    data = response.json()
+    assert "video_id" in data
+    assert data["status"] == "pending"
+
+
+def test_generate_video_without_file_field(client):
+    """Test video generation without any file field (image is optional)."""
+    response = client.post(
+        "/generate",
+        data={
+            "prompt": "A beautiful landscape",
+            "resolution": "1280x720",
+            "seconds": "4",
+        },
+    )
+
+    # Should succeed - image is optional
+    assert response.status_code == 200
+    data = response.json()
+    assert "video_id" in data
+    assert data["status"] == "pending"
+
+
+def test_azure_service_requires_environment_variables():
+    """Test that AzureOpenAIService raises error when environment variables are missing.
+
+    This tests the fix for Issue #2 where missing AZURE_OPENAI_ENDPOINT
+    caused invalid URL construction.
+    """
+    from app.services.azure_openai import AzureOpenAIService
+
+    # Test with missing AZURE_OPENAI_ENDPOINT
+    with patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "test-key"}, clear=True):
+        with pytest.raises(ValueError, match="AZURE_OPENAI_ENDPOINT"):
+            AzureOpenAIService()
+
+    # Test with missing AZURE_OPENAI_API_KEY
+    with patch.dict(
+        "os.environ", {"AZURE_OPENAI_ENDPOINT": "https://test.com"}, clear=True
+    ):
+        with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
+            AzureOpenAIService()
+
+    # Test with both present - should not raise
+    with patch.dict(
+        "os.environ",
+        {
+            "AZURE_OPENAI_ENDPOINT": "https://test.com",
+            "AZURE_OPENAI_API_KEY": "test-key",
+        },
+        clear=True,
+    ):
+        with patch("app.services.azure_openai.OpenAI"):
+            service = AzureOpenAIService()
+            assert service is not None

@@ -25,7 +25,7 @@ def test_health_endpoint(client):
     assert data["service"] == "azure-openai-sora"
 
 
-def test_lifespan_startup_shutdown():
+def test_lifespan_startup_shutdown(mock_env_vars):
     """Test that the lifespan event properly initializes and cleans up."""
     with patch("app.services.azure_openai.OpenAI"):
         with TestClient(app) as client:
@@ -35,7 +35,7 @@ def test_lifespan_startup_shutdown():
             # Cleanup happens automatically when context exits
 
 
-def test_no_deprecation_warnings():
+def test_no_deprecation_warnings(mock_env_vars):
     """Test that the FastAPI app doesn't emit deprecation warnings for event handlers."""
     # Capture warnings
     with warnings.catch_warnings(record=True) as w:
