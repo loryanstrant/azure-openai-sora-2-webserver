@@ -336,3 +336,50 @@ def test_azure_service_requires_environment_variables():
         with patch("app.services.azure_openai.OpenAI"):
             service = AzureOpenAIService()
             assert service is not None
+
+
+def test_azure_service_validates_endpoint_protocol():
+    """Test that AzureOpenAIService validates endpoint URL protocol.
+
+    This tests the fix for the protocol error where endpoint URLs without
+    http:// or https:// would cause APIConnectionError.
+    """
+    from app.services.azure_openai import AzureOpenAIService
+
+    # Test with endpoint missing protocol - should raise clear error
+    with patch.dict(
+        "os.environ",
+        {
+            "AZURE_OPENAI_ENDPOINT": "test.openai.azure.com",
+            "AZURE_OPENAI_API_KEY": "test-key",
+        },
+        clear=True,
+    ):
+        with pytest.raises(ValueError, match="must start with 'http://' or 'https://'"):
+            AzureOpenAIService()
+
+    # Test with valid https:// endpoint - should not raise
+    with patch.dict(
+        "os.environ",
+        {
+            "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
+            "AZURE_OPENAI_API_KEY": "test-key",
+        },
+        clear=True,
+    ):
+        with patch("app.services.azure_openai.OpenAI"):
+            service = AzureOpenAIService()
+            assert service is not None
+
+    # Test with valid http:// endpoint - should not raise
+    with patch.dict(
+        "os.environ",
+        {
+            "AZURE_OPENAI_ENDPOINT": "http://localhost:8080",
+            "AZURE_OPENAI_API_KEY": "test-key",
+        },
+        clear=True,
+    ):
+        with patch("app.services.azure_openai.OpenAI"):
+            service = AzureOpenAIService()
+            assert service is not None

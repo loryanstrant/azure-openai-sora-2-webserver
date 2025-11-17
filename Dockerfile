@@ -29,6 +29,7 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -60,6 +61,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV TZ=UTC
 
 # Run the application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
