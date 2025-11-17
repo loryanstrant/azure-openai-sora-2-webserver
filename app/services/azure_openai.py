@@ -133,7 +133,9 @@ class AzureOpenAIService:
                         )
                         # For now, we'll store a placeholder URL
                         # In a real scenario, you'd save the content to storage
-                        self.video_jobs[video_id].video_url = f"data:video/mp4;base64,{video_id}"
+                        self.video_jobs[video_id].video_url = (
+                            f"data:video/mp4;base64,{video_id}"
+                        )
                     except Exception as e:
                         print(f"Error downloading video: {e}")
                     break
