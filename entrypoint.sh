@@ -1,5 +1,5 @@
 #!/bin/sh
-# Entrypoint script to handle volume mount permissions
+# Entrypoint script to handle volume mount permissions for Azure OpenAI Sora Web Server
 
 set -e
 
@@ -54,3 +54,4 @@ else
     echo "Already running as non-root user, starting application..."
     exec "$@"
 fi
+
