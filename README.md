@@ -27,10 +27,43 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | Yes | - |
-| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`) | Yes | - |
+| `AZURE_OPENAI_VIDEO_URL` | **(Recommended)** Complete URL for video generation endpoint. When provided, this takes precedence over other URL configuration. Use this to specify the exact endpoint URL for your Azure service. Example: `https://your-instance.cognitiveservices.azure.com/openai/v1/videos` | No | - |
+| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`). Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | Yes (if `AZURE_OPENAI_VIDEO_URL` not set) | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
-| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version for video generation | No | `2024-08-01-preview` |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version for video generation. Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | No | `2024-08-01-preview` |
 | `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
+
+### Configuration Modes
+
+The service supports two configuration modes:
+
+#### 1. Custom Video URL Mode (Recommended)
+Use `AZURE_OPENAI_VIDEO_URL` to specify the complete endpoint URL. This is the most flexible approach and works with different Azure services and URL structures:
+
+```bash
+export AZURE_OPENAI_API_KEY="your-api-key"
+export AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos"
+export AZURE_OPENAI_DEPLOYMENT="sora-2"
+```
+
+This mode is recommended because:
+- It gives you full control over the endpoint URL
+- It works with both `.openai.azure.com` and `.cognitiveservices.azure.com` domains
+- It supports different API path structures
+- It allows you to omit API versions if not required by your service
+
+#### 2. Legacy Mode (Automatic URL Construction)
+Use `AZURE_OPENAI_ENDPOINT` to let the service construct the URL automatically:
+
+```bash
+export AZURE_OPENAI_API_KEY="your-api-key"
+export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/"
+export AZURE_OPENAI_DEPLOYMENT="sora-2"
+export AZURE_OPENAI_API_VERSION="2024-08-01-preview"
+```
+
+This mode automatically constructs URLs in the format:
+`{ENDPOINT}/openai/deployments/{DEPLOYMENT}/videos?api-version={API_VERSION}`
 
 ## 🏗️ Installation & Setup
 
@@ -48,6 +81,15 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
    ```
 
 3. **Set environment variables**
+
+   **Option A: Using Custom Video URL (Recommended)**
+   ```bash
+   export AZURE_OPENAI_API_KEY="your-api-key"
+   export AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos"
+   export AZURE_OPENAI_DEPLOYMENT="sora-2"
+   ```
+
+   **Option B: Using Legacy Endpoint Configuration**
    ```bash
    export AZURE_OPENAI_API_KEY="your-api-key"
    export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/"
@@ -72,6 +114,19 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
    ```
 
 2. **Run the container**
+
+   **Option A: Using Custom Video URL (Recommended)**
+   ```bash
+   docker run -d \
+     --name sora-webserver \
+     -p 8000:8000 \
+     -e AZURE_OPENAI_API_KEY="your-api-key" \
+     -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
+     -e TZ="America/New_York" \
+     azure-openai-sora-webserver
+   ```
+
+   **Option B: Using Legacy Endpoint Configuration**
    ```bash
    docker run -d \
      --name sora-webserver \
@@ -92,6 +147,19 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 The application is automatically built and published to GitHub Container Registry (GHCR):
 
+**Option A: Using Custom Video URL (Recommended)**
+```bash
+docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
+docker run -d \
+  --name sora-webserver \
+  -p 8000:8000 \
+  -e AZURE_OPENAI_API_KEY="your-api-key" \
+  -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
+  -e TZ="America/New_York" \
+  ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
+```
+
+**Option B: Using Legacy Endpoint Configuration**
 ```bash
 docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
 docker run -d \

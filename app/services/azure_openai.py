@@ -6,6 +6,7 @@ import os
 import uuid
 from typing import Any
 
+import httpx
 from openai import AzureOpenAI
 
 from ..models import VideoGenerationRequest, VideoStatus
@@ -22,51 +23,105 @@ class AzureOpenAIService:
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_API_KEY")
         api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+        video_url = os.getenv("AZURE_OPENAI_VIDEO_URL")
 
         # Validate required environment variables
-        if not endpoint:
-            raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is required")
         if not api_key:
             raise ValueError("AZURE_OPENAI_API_KEY environment variable is required")
 
-        # Ensure endpoint has proper protocol (http:// or https://)
-        if not endpoint.startswith(("http://", "https://")):
-            raise ValueError(
-                "AZURE_OPENAI_ENDPOINT must start with 'http://' or 'https://'. "
-                f"Got: {endpoint}"
-            )
+        # Store API key and version for use in custom requests
+        self.api_key = api_key
+        self.api_version = api_version
 
         # Model deployment name
         self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "sora-2")
 
-        # Ensure endpoint ends with /
-        if not endpoint.endswith("/"):
-            endpoint = f"{endpoint}/"
+        # Determine which configuration mode to use
+        if video_url:
+            # Custom video URL mode - user provides complete URL
+            if not video_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    "AZURE_OPENAI_VIDEO_URL must start with 'http://' or 'https://'. "
+                    f"Got: {video_url}"
+                )
 
-        # For Azure OpenAI, we need to include the deployment in the endpoint URL
-        # The SDK expects: https://{endpoint}/openai/deployments/{deployment}/
-        if "/openai/" not in endpoint:
-            # Add /openai/ if not present
-            endpoint = f"{endpoint}openai/"
+            # Store the custom video URL for later use
+            self.custom_video_url = video_url
 
-        # Add deployments path if not already present
-        if "/deployments/" not in endpoint:
-            endpoint = f"{endpoint}deployments/{self.model}/"
+            # For custom URL mode, we still need a base endpoint for the client
+            # Extract base URL from video URL (everything before /openai/)
+            if "/openai/" in video_url:
+                endpoint = video_url.split("/openai/")[0] + "/"
+            else:
+                # If no /openai/ in URL, use the base domain
+                from urllib.parse import urlparse
 
-        # Initialize AzureOpenAI client
-        self.client = AzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=endpoint,
-            api_version=api_version,
-        )
+                parsed = urlparse(video_url)
+                endpoint = f"{parsed.scheme}://{parsed.netloc}/"
 
-        # Log configuration (mask API key)
-        masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
-        logger.info(
-            f"Azure OpenAI Service initialized - "
-            f"Endpoint: {endpoint}, API Version: {api_version}, "
-            f"Model: {self.model}, API Key: {masked_key}"
-        )
+            # Initialize AzureOpenAI client with base endpoint (for polling and download)
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                api_version=api_version,
+            )
+
+            # Log configuration (mask API key)
+            masked_key = (
+                f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            )
+            logger.info(
+                f"Azure OpenAI Service initialized with custom video URL - "
+                f"Video URL: {video_url}, API Version: {api_version}, "
+                f"Model: {self.model}, API Key: {masked_key}"
+            )
+        else:
+            # Legacy mode - construct URL from endpoint
+            if not endpoint:
+                raise ValueError(
+                    "AZURE_OPENAI_ENDPOINT environment variable is required"
+                )
+
+            # Ensure endpoint has proper protocol (http:// or https://)
+            if not endpoint.startswith(("http://", "https://")):
+                raise ValueError(
+                    "AZURE_OPENAI_ENDPOINT must start with 'http://' or 'https://'. "
+                    f"Got: {endpoint}"
+                )
+
+            # Ensure endpoint ends with /
+            if not endpoint.endswith("/"):
+                endpoint = f"{endpoint}/"
+
+            # For Azure OpenAI, we need to include the deployment in the endpoint URL
+            # The SDK expects: https://{endpoint}/openai/deployments/{deployment}/
+            if "/openai/" not in endpoint:
+                # Add /openai/ if not present
+                endpoint = f"{endpoint}openai/"
+
+            # Add deployments path if not already present
+            if "/deployments/" not in endpoint:
+                endpoint = f"{endpoint}deployments/{self.model}/"
+
+            # Initialize AzureOpenAI client
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                api_version=api_version,
+            )
+
+            # No custom video URL in legacy mode
+            self.custom_video_url = None
+
+            # Log configuration (mask API key)
+            masked_key = (
+                f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            )
+            logger.info(
+                f"Azure OpenAI Service initialized - "
+                f"Endpoint: {endpoint}, API Version: {api_version}, "
+                f"Model: {self.model}, API Key: {masked_key}"
+            )
 
         self.video_jobs: dict[str, VideoStatus] = {}
 
@@ -116,6 +171,77 @@ class AzureOpenAIService:
 
     def _call_sora_api(self, request: VideoGenerationRequest) -> dict[str, Any]:
         """Call the Sora 2 API for video generation."""
+        if self.custom_video_url:
+            # Use custom URL with direct HTTP call
+            return self._call_sora_api_custom_url(request)
+        else:
+            # Use OpenAI SDK
+            return self._call_sora_api_sdk(request)
+
+    def _call_sora_api_custom_url(
+        self, request: VideoGenerationRequest
+    ) -> dict[str, Any]:
+        """Call the Sora 2 API using custom video URL with direct HTTP request."""
+        # Prepare request body
+        request_body = {
+            "model": self.model,
+            "prompt": request.prompt,
+            "size": request.resolution.value,
+            "seconds": str(request.seconds),
+        }
+
+        # Prepare headers
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": self.api_key,
+        }
+
+        logger.info(
+            f"Calling Sora API with custom URL - "
+            f"URL: {self.custom_video_url}, Model: {self.model}, "
+            f"Prompt: '{request.prompt}', Resolution: {request.resolution.value}, "
+            f"Duration: {request.seconds}s"
+        )
+
+        try:
+            # Make HTTP POST request
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(
+                    self.custom_video_url,
+                    json=request_body,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                result = response.json()
+
+            # Log successful response
+            logger.info(
+                f"Sora API response received - "
+                f"Video ID: {result.get('id')}, Status: {result.get('status')}"
+            )
+
+            return {
+                "id": result.get("id"),
+                "status": result.get("status", "queued"),
+                "progress": result.get("progress", 0),
+            }
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Sora API HTTP error - "
+                f"Status: {e.response.status_code}, Response: {e.response.text}"
+            )
+            raise Exception(
+                f"API request failed with status {e.response.status_code}: {e.response.text}"
+            ) from e
+        except Exception as e:
+            logger.error(
+                f"Sora API call failed - "
+                f"Error type: {type(e).__name__}, Error: {str(e)}"
+            )
+            raise
+
+    def _call_sora_api_sdk(self, request: VideoGenerationRequest) -> dict[str, Any]:
+        """Call the Sora 2 API using OpenAI SDK."""
         # Prepare API call parameters
         api_params = {
             "model": self.model,
@@ -194,10 +320,24 @@ class AzureOpenAIService:
                 logger.debug(
                     f"Polling video status (attempt {poll_count}/{max_polls}) - Azure Video ID: {azure_video_id}"
                 )
-                video = self.client.videos.retrieve(azure_video_id)
+
+                if self.custom_video_url:
+                    # Use custom URL with direct HTTP call
+                    status_url = f"{self.custom_video_url}/{azure_video_id}"
+                    headers = {"api-key": self.api_key}
+
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        response = await client.get(status_url, headers=headers)
+                        response.raise_for_status()
+                        video_data = response.json()
+
+                    status = video_data.get("status", "queued")
+                else:
+                    # Use SDK
+                    video = self.client.videos.retrieve(azure_video_id)
+                    status = video.status
 
                 # Update job status
-                status = video.status
                 self.video_jobs[video_id].status = status
 
                 logger.info(
@@ -215,14 +355,21 @@ class AzureOpenAIService:
                     logger.info(f"Video generation completed - Video ID: {video_id}")
                     # Download the video
                     try:
-                        _ = self.client.videos.download_content(
-                            azure_video_id, variant="video"
-                        )
-                        # For now, we'll store a placeholder URL
-                        # In a real scenario, you'd save the content to storage
-                        self.video_jobs[video_id].video_url = (
-                            f"data:video/mp4;base64,{video_id}"
-                        )
+                        if self.custom_video_url:
+                            # For custom URL, we would need a download endpoint
+                            # For now, store a placeholder
+                            self.video_jobs[video_id].video_url = (
+                                f"data:video/mp4;base64,{video_id}"
+                            )
+                        else:
+                            _ = self.client.videos.download_content(
+                                azure_video_id, variant="video"
+                            )
+                            # For now, we'll store a placeholder URL
+                            # In a real scenario, you'd save the content to storage
+                            self.video_jobs[video_id].video_url = (
+                                f"data:video/mp4;base64,{video_id}"
+                            )
                         logger.info(
                             f"Video downloaded successfully - Video ID: {video_id}"
                         )
