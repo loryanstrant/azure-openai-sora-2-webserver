@@ -30,6 +30,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     tzdata \
+    gosu \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -39,14 +40,13 @@ COPY --from=builder /root/.local /home/appuser/.local
 # Copy application code
 COPY app/ ./app/
 COPY static/ ./static/
+COPY entrypoint.sh /entrypoint.sh
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/data /app/data/videos \
     && chown -R appuser:appuser /app \
-    && chmod -R 755 /app
-
-# Switch to non-root user
-USER appuser
+    && chmod -R 755 /app \
+    && chmod +x /entrypoint.sh
 
 # Ensure user's local bin is in PATH
 ENV PATH=/home/appuser/.local/bin:$PATH
@@ -65,6 +65,9 @@ ENV TZ=UTC
 
 # Volume for persistent video storage
 VOLUME ["/app/data"]
+
+# Set entrypoint to handle permissions
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Run the application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

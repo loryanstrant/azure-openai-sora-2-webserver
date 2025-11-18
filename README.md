@@ -145,6 +145,7 @@ This mode automatically constructs URLs in the format:
    **Notes**: 
    - The `-v $(pwd)/data:/app/data` mount creates a persistent volume for storing generated videos and history
    - Set `TZ` to your local timezone for accurate log timestamps (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `UTC` if not specified.
+   - **Volume Permissions**: The container automatically fixes permissions on mounted volumes. If the mounted directory is owned by root or another user, the container will change ownership to the internal `appuser` at startup. This ensures the application can write videos to the mounted volume without permission errors.
 
 3. **Access the application**
    - Web Interface: http://localhost:8000
@@ -355,6 +356,52 @@ The GitHub Actions workflow automatically:
 - **Structured logging**: JSON logs for production environments
 - **Progress tracking**: Real-time video generation progress
 - **Error handling**: Comprehensive error messages and status codes
+
+## 🐛 Troubleshooting
+
+### Volume Permission Issues
+
+If you encounter `PermissionError: [Errno 13] Permission denied` errors:
+
+**Automatic Fix (Recommended)**:
+The container automatically fixes permissions on mounted volumes at startup. Simply restart the container:
+```bash
+docker restart your-container-name
+```
+
+The entrypoint script will:
+1. Detect that the mounted volume is not owned by the application user
+2. Change ownership to the internal user (`appuser`)
+3. Create necessary subdirectories with proper permissions
+4. Start the application with the correct user context
+
+**Manual Fix (Alternative)**:
+If you prefer to manage permissions yourself:
+```bash
+# Option 1: Change ownership on the host (requires sudo)
+sudo chown -R $(id -u):$(id -g) /path/to/your/data/volume
+
+# Option 2: Run container with your user ID
+docker run -d \
+  --user $(id -u):$(id -g) \
+  -v /path/to/data:/app/data \
+  ...other options...
+  azure-openai-sora-webserver
+```
+
+**Verification**:
+Check the container logs to see the permission fix in action:
+```bash
+docker logs your-container-name
+```
+
+You should see output like:
+```
+Checking permissions for /app/data...
+Fixing permissions for /app/data (current owner: 0, target: 999)...
+Permissions fixed for /app/data
+Switching to appuser and starting application...
+```
 
 ## 🤝 Contributing
 
