@@ -1,7 +1,6 @@
 """Tests for new history and video endpoints."""
 
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,7 +51,7 @@ def test_history_endpoint_with_entries(client):
             resolution="1280x720",
             seconds=4,
             had_input_image=False,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             status="completed",
             file_path="/tmp/test1.mp4",
             file_size_bytes=1024,

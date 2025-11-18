@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +81,7 @@ class HistoryService:
             "resolution": resolution,
             "seconds": seconds,
             "had_input_image": had_input_image,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "completed_at": None,
             "status": "pending",
             "file_path": None,
@@ -118,9 +118,7 @@ class HistoryService:
         if status:
             self._history[video_id]["status"] = status
             if status == "completed":
-                self._history[video_id]["completed_at"] = datetime.now(
-                    timezone.utc
-                ).isoformat()
+                self._history[video_id]["completed_at"] = datetime.now(UTC).isoformat()
 
         if file_path:
             self._history[video_id]["file_path"] = file_path
