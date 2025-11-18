@@ -74,3 +74,29 @@ def test_videos_endpoint_not_found(client):
     assert response.status_code == 404
     data = response.json()
     assert "not found" in data["detail"].lower()
+
+
+def test_delete_video_endpoint(client):
+    """Test that delete endpoint removes video and history entry."""
+    # Mock the delete_entry method
+    client.mock_service.history.delete_entry = MagicMock(return_value=True)
+
+    response = client.delete("/history/test-id")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "deleted" in data["message"].lower()
+
+    # Verify delete_entry was called
+    client.mock_service.history.delete_entry.assert_called_once_with("test-id")
+
+
+def test_delete_video_not_found(client):
+    """Test that delete endpoint returns 404 for non-existent video."""
+    # Mock the delete_entry method to return False
+    client.mock_service.history.delete_entry = MagicMock(return_value=False)
+
+    response = client.delete("/history/non-existent-id")
+    assert response.status_code == 404
+    data = response.json()
+    assert "not found" in data["detail"].lower()

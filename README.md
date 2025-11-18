@@ -6,16 +6,20 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 - **Modern FastAPI Web Server**: Built with FastAPI using modern async patterns and lifespan handlers
 - **Web Interface**: Intuitive HTML/CSS/JavaScript frontend for easy video generation
-- **Video History**: View all generated videos with metadata and playback in the web interface
+- **Enhanced Video History**: Advanced history page with search, filtering, sorting, and modal video playback
+  - 🔍 **Search**: Filter videos by prompt text
+  - 📊 **Sort**: Sort by date, resolution, or duration
+  - 🎯 **Filter**: Filter by resolution, duration, and status
+  - 🎬 **Modal Playback**: Click any video to view in a full-screen modal
+  - 🗑️ **Delete**: Remove videos and their history entries
 - **Persistent Storage**: Videos are downloaded and saved locally with volume mount support
 - **RESTful API**: Complete API with automatic documentation via FastAPI
 - **Azure OpenAI Integration**: Seamless connection to Azure OpenAI Sora 2 video generation
-- **Containerized**: Multi-stage Docker build with security best practices
+- **Containerized**: Multi-stage Docker build optimized for ease of use
 - **Comprehensive Testing**: Unit, integration, and API tests with mocking
 - **Code Quality**: Linting, formatting, and type checking with Ruff and Black
 - **CI/CD Pipeline**: GitHub Actions workflow with automated testing and deployment
 - **Health Monitoring**: Built-in health checks and logging
-- **Security**: Container runs as non-root user, vulnerability scanning with Trivy
 
 ## 📋 Requirements
 
@@ -344,11 +348,11 @@ The GitHub Actions workflow automatically:
 
 ## 🔒 Security Features
 
-- **Non-root container execution**: Application runs as dedicated user
 - **Dependency scanning**: Automated vulnerability checks
 - **Multi-stage builds**: Reduced attack surface in production image
 - **Health checks**: Container health monitoring
 - **Input validation**: Comprehensive request validation with Pydantic
+- **Isolated execution**: Container runs with full control over mounted volumes to prevent permission issues
 
 ## 📊 Monitoring & Logging
 
@@ -361,27 +365,13 @@ The GitHub Actions workflow automatically:
 
 ### Volume Permission Issues
 
-If you encounter `PermissionError: [Errno 13] Permission denied` errors:
+The container runs as root by default, which eliminates most permission issues when mounting volumes. The entrypoint script automatically:
+1. Creates necessary directories (`/app/data` and `/app/data/videos`)
+2. Ensures directories are accessible and writable
+3. Starts the application with full permissions
 
-**Automatic Fix (Recommended)**:
-The container automatically fixes permissions on mounted volumes at startup. Simply restart the container:
+If you prefer to run the container with a specific user ID (not recommended), you can use:
 ```bash
-docker restart your-container-name
-```
-
-The entrypoint script will:
-1. Detect that the mounted volume is not owned by the application user
-2. Change ownership to the internal user (`appuser`)
-3. Create necessary subdirectories with proper permissions
-4. Start the application with the correct user context
-
-**Manual Fix (Alternative)**:
-If you prefer to manage permissions yourself:
-```bash
-# Option 1: Change ownership on the host (requires sudo)
-sudo chown -R $(id -u):$(id -g) /path/to/your/data/volume
-
-# Option 2: Run container with your user ID
 docker run -d \
   --user $(id -u):$(id -g) \
   -v /path/to/data:/app/data \
@@ -389,18 +379,19 @@ docker run -d \
   azure-openai-sora-webserver
 ```
 
+**Note**: Running as a non-root user may cause permission issues with mounted volumes.
+
 **Verification**:
-Check the container logs to see the permission fix in action:
+Check the container logs to verify startup:
 ```bash
 docker logs your-container-name
 ```
 
 You should see output like:
 ```
-Checking permissions for /app/data...
-Fixing permissions for /app/data (current owner: 0, target: 999)...
-Permissions fixed for /app/data
-Switching to appuser and starting application...
+Directory /app/data exists
+Directory /app/data is writable
+Starting application as root...
 ```
 
 ## 🤝 Contributing

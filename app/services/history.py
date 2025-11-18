@@ -205,3 +205,33 @@ class HistoryService:
         except Exception as e:
             logger.error(f"Failed to save video {video_id}: {e}")
             raise
+
+    def delete_entry(self, video_id: str) -> bool:
+        """Delete a video and its history entry.
+
+        Args:
+            video_id: Video identifier
+
+        Returns:
+            True if deleted successfully, False if not found
+        """
+        if video_id not in self._history:
+            logger.warning(f"Attempted to delete non-existent entry: {video_id}")
+            return False
+
+        # Delete the video file if it exists
+        entry = self._history.get(video_id)
+        if entry and entry.get("file_path"):
+            video_path = Path(entry["file_path"])
+            if video_path.exists():
+                try:
+                    video_path.unlink()
+                    logger.info(f"Deleted video file: {video_path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete video file {video_path}: {e}")
+
+        # Remove from history
+        del self._history[video_id]
+        self._save_history()
+        logger.info(f"Deleted history entry for video {video_id}")
+        return True

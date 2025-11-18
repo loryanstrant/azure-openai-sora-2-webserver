@@ -169,6 +169,21 @@ async def get_video(video_id: str):
     )
 
 
+@app.delete("/history/{video_id}")
+async def delete_video(video_id: str):
+    """Delete a video and its history entry."""
+    try:
+        success = azure_service.history.delete_entry(video_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Video not found")
+        return {"status": "success", "message": f"Video {video_id} deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting video {video_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 if __name__ == "__main__":
     import uvicorn
 

@@ -20,9 +20,6 @@ RUN pip install --no-cache-dir --user -r requirements.txt --trusted-host pypi.or
 # Production stage
 FROM python:3.11-slim
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
 # Set working directory
 WORKDIR /app
 
@@ -30,12 +27,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     tzdata \
-    gosu \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Copy Python packages from builder stage
-COPY --from=builder /root/.local /home/appuser/.local
+COPY --from=builder /root/.local /root/.local
 
 # Copy application code
 COPY app/ ./app/
@@ -44,12 +40,11 @@ COPY entrypoint.sh /entrypoint.sh
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/data /app/data/videos \
-    && chown -R appuser:appuser /app \
     && chmod -R 755 /app \
     && chmod +x /entrypoint.sh
 
-# Ensure user's local bin is in PATH
-ENV PATH=/home/appuser/.local/bin:$PATH
+# Ensure local bin is in PATH
+ENV PATH=/root/.local/bin:$PATH
 
 # Expose port
 EXPOSE 8000
