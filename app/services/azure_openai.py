@@ -55,6 +55,7 @@ class AzureOpenAIService:
             else:
                 # If no /openai/ in URL, use the base domain
                 from urllib.parse import urlparse
+
                 parsed = urlparse(video_url)
                 endpoint = f"{parsed.scheme}://{parsed.netloc}/"
 
@@ -66,7 +67,9 @@ class AzureOpenAIService:
             )
 
             # Log configuration (mask API key)
-            masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            masked_key = (
+                f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            )
             logger.info(
                 f"Azure OpenAI Service initialized with custom video URL - "
                 f"Video URL: {video_url}, API Version: {api_version}, "
@@ -75,7 +78,9 @@ class AzureOpenAIService:
         else:
             # Legacy mode - construct URL from endpoint
             if not endpoint:
-                raise ValueError("AZURE_OPENAI_ENDPOINT environment variable is required")
+                raise ValueError(
+                    "AZURE_OPENAI_ENDPOINT environment variable is required"
+                )
 
             # Ensure endpoint has proper protocol (http:// or https://)
             if not endpoint.startswith(("http://", "https://")):
@@ -109,7 +114,9 @@ class AzureOpenAIService:
             self.custom_video_url = None
 
             # Log configuration (mask API key)
-            masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            masked_key = (
+                f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+            )
             logger.info(
                 f"Azure OpenAI Service initialized - "
                 f"Endpoint: {endpoint}, API Version: {api_version}, "
@@ -171,7 +178,9 @@ class AzureOpenAIService:
             # Use OpenAI SDK
             return self._call_sora_api_sdk(request)
 
-    def _call_sora_api_custom_url(self, request: VideoGenerationRequest) -> dict[str, Any]:
+    def _call_sora_api_custom_url(
+        self, request: VideoGenerationRequest
+    ) -> dict[str, Any]:
         """Call the Sora 2 API using custom video URL with direct HTTP request."""
         # Prepare request body
         request_body = {
@@ -221,7 +230,9 @@ class AzureOpenAIService:
                 f"Sora API HTTP error - "
                 f"Status: {e.response.status_code}, Response: {e.response.text}"
             )
-            raise Exception(f"API request failed with status {e.response.status_code}: {e.response.text}") from e
+            raise Exception(
+                f"API request failed with status {e.response.status_code}: {e.response.text}"
+            ) from e
         except Exception as e:
             logger.error(
                 f"Sora API call failed - "

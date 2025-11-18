@@ -29,7 +29,10 @@ def test_service_initialization_with_custom_url(mock_env_vars_custom_url):
     with patch("app.services.azure_openai.AzureOpenAI"):
         service = AzureOpenAIService()
 
-        assert service.custom_video_url == "https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos"
+        assert (
+            service.custom_video_url
+            == "https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos"
+        )
         assert service.api_key == "test-api-key"
         assert service.model == "sora-2"
 
@@ -55,11 +58,13 @@ def test_service_initialization_custom_url_logging(mock_env_vars_custom_url, cap
 
             # Check that custom URL log was created
             assert any(
-                "Azure OpenAI Service initialized with custom video URL" in record.message
+                "Azure OpenAI Service initialized with custom video URL"
+                in record.message
                 for record in caplog.records
             )
             assert any(
-                "Video URL: https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos" in record.message
+                "Video URL: https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos"
+                in record.message
                 for record in caplog.records
             )
 
@@ -96,7 +101,10 @@ def test_call_sora_api_with_custom_url(mock_env_vars_custom_url):
             call_args = mock_client.post.call_args
 
             # Check URL
-            assert call_args[0][0] == "https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos"
+            assert (
+                call_args[0][0]
+                == "https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos"
+            )
 
             # Check headers
             assert "headers" in call_args[1]
@@ -153,6 +161,7 @@ async def test_poll_video_status_with_custom_url(mock_env_vars_custom_url):
 
         # Create a test video job
         from app.models import VideoStatus
+
         video_id = "test-video-id"
         azure_video_id = "azure-video-123"
         service.video_jobs[video_id] = VideoStatus(
@@ -200,7 +209,10 @@ def test_custom_url_takes_precedence_over_endpoint():
             service = AzureOpenAIService()
 
             # Custom URL should be used
-            assert service.custom_video_url == "https://new-endpoint.cognitiveservices.azure.com/openai/v1/videos"
+            assert (
+                service.custom_video_url
+                == "https://new-endpoint.cognitiveservices.azure.com/openai/v1/videos"
+            )
 
 
 def test_legacy_mode_still_works_without_custom_url():
