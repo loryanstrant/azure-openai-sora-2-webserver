@@ -11,7 +11,7 @@ setup_directories() {
     if [ ! -d "$dir" ]; then
         echo "Creating directory $dir..."
         mkdir -p "$dir/videos" 2>/dev/null || {
-            echo "Warning: Could not create $dir"
+            echo "Warning: Could not create $dir - this may be expected if running as non-root"
         }
     else
         echo "Directory $dir exists"
@@ -23,13 +23,13 @@ setup_directories() {
     if [ -w "$dir" ]; then
         echo "Directory $dir is writable"
     else
-        echo "Warning: Directory $dir may not be writable"
+        echo "Warning: Directory $dir may not be writable. Please ensure volume mount has correct permissions (UID/GID 1000)."
     fi
 }
 
 # Setup data directory and subdirectories
 setup_directories "/app/data"
 
-echo "Starting application as root..."
+echo "Starting application as appuser (UID 1000)..."
 exec "$@"
 

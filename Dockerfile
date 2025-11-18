@@ -30,8 +30,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+# Create non-root user
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser appuser
+
 # Copy Python packages from builder stage
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /root/.local /usr/local
 
 # Copy application code
 COPY app/ ./app/
@@ -41,10 +45,11 @@ COPY entrypoint.sh /entrypoint.sh
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/data /app/data/videos \
     && chmod -R 755 /app \
-    && chmod +x /entrypoint.sh
+    && chmod +x /entrypoint.sh \
+    && chown -R appuser:appuser /app
 
 # Ensure local bin is in PATH
-ENV PATH=/root/.local/bin:$PATH
+ENV PATH=/usr/local/bin:$PATH
 
 # Expose port
 EXPOSE 8000
@@ -60,6 +65,9 @@ ENV TZ=UTC
 
 # Volume for persistent video storage
 VOLUME ["/app/data"]
+
+# Switch to non-root user
+USER appuser
 
 # Set entrypoint to handle permissions
 ENTRYPOINT ["/entrypoint.sh"]
