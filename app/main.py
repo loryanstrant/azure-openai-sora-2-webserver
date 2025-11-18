@@ -7,11 +7,16 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .models import VideoGenerationRequest, VideoResolution, VideoStatus
+from .models import (
+    VideoGenerationRequest,
+    VideoHistoryEntry,
+    VideoResolution,
+    VideoStatus,
+)
 from .services.azure_openai import AzureOpenAIService
 
 # Application version
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Configure logging
 logging.basicConfig(
@@ -143,6 +148,25 @@ async def health_check():
 async def version():
     """Get application version."""
     return {"version": __version__}
+
+
+@app.get("/history", response_model=list[VideoHistoryEntry])
+async def get_history():
+    """Get video generation history."""
+    return azure_service.history.get_all_entries()
+
+
+@app.get("/videos/{video_id}")
+async def get_video(video_id: str):
+    """Serve a generated video file."""
+    video_path = azure_service.history.get_video_path(video_id)
+    if not video_path or not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=f"{video_id}.mp4",
+    )
 
 
 if __name__ == "__main__":
