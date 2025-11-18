@@ -1,6 +1,7 @@
 """Tests for custom video URL functionality."""
 
 import logging
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -11,7 +12,14 @@ from app.services.azure_openai import AzureOpenAIService
 
 
 @pytest.fixture
-def mock_env_vars_custom_url():
+def temp_storage_dir():
+    """Create a temporary storage directory for tests."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
+
+
+@pytest.fixture
+def mock_env_vars_custom_url(temp_storage_dir):
     """Mock environment variables for custom URL testing."""
     with patch.dict(
         "os.environ",
@@ -19,6 +27,7 @@ def mock_env_vars_custom_url():
             "AZURE_OPENAI_API_KEY": "test-api-key",
             "AZURE_OPENAI_VIDEO_URL": "https://lorya-mg1r7mj6-swedencentral.cognitiveservices.azure.com/openai/v1/videos",
             "AZURE_OPENAI_DEPLOYMENT": "sora-2",
+            "VIDEO_STORAGE_DIR": temp_storage_dir,
         },
     ):
         yield
@@ -195,7 +204,7 @@ async def test_poll_video_status_with_custom_url(mock_env_vars_custom_url):
             assert service.video_jobs[video_id].progress == 100
 
 
-def test_custom_url_takes_precedence_over_endpoint():
+def test_custom_url_takes_precedence_over_endpoint(temp_storage_dir):
     """Test that custom URL takes precedence when both are provided."""
     with patch.dict(
         "os.environ",
@@ -203,6 +212,7 @@ def test_custom_url_takes_precedence_over_endpoint():
             "AZURE_OPENAI_API_KEY": "test-api-key",
             "AZURE_OPENAI_ENDPOINT": "https://old-endpoint.openai.azure.com/",
             "AZURE_OPENAI_VIDEO_URL": "https://new-endpoint.cognitiveservices.azure.com/openai/v1/videos",
+            "VIDEO_STORAGE_DIR": temp_storage_dir,
         },
     ):
         with patch("app.services.azure_openai.AzureOpenAI"):
@@ -215,7 +225,7 @@ def test_custom_url_takes_precedence_over_endpoint():
             )
 
 
-def test_legacy_mode_still_works_without_custom_url():
+def test_legacy_mode_still_works_without_custom_url(temp_storage_dir):
     """Test that legacy mode (without custom URL) still works."""
     with patch.dict(
         "os.environ",
@@ -223,6 +233,7 @@ def test_legacy_mode_still_works_without_custom_url():
             "AZURE_OPENAI_API_KEY": "test-api-key",
             "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
             "AZURE_OPENAI_DEPLOYMENT": "sora-2",
+            "VIDEO_STORAGE_DIR": temp_storage_dir,
         },
     ):
         with patch("app.services.azure_openai.AzureOpenAI") as mock_azure_openai:

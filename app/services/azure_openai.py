@@ -10,6 +10,7 @@ import httpx
 from openai import AzureOpenAI
 
 from ..models import VideoGenerationRequest, VideoStatus
+from .history import HistoryService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -125,6 +126,10 @@ class AzureOpenAIService:
 
         self.video_jobs: dict[str, VideoStatus] = {}
 
+        # Initialize history service
+        storage_dir = os.getenv("VIDEO_STORAGE_DIR", "/app/data")
+        self.history = HistoryService(storage_dir=storage_dir)
+
     async def generate_video(self, request: VideoGenerationRequest) -> str:
         """Generate a video asynchronously."""
         video_id = str(uuid.uuid4())
@@ -132,6 +137,15 @@ class AzureOpenAIService:
         # Create initial job status
         self.video_jobs[video_id] = VideoStatus(
             video_id=video_id, status="pending", progress=0
+        )
+
+        # Add to history
+        self.history.add_entry(
+            video_id=video_id,
+            prompt=request.prompt,
+            resolution=request.resolution.value,
+            seconds=request.seconds,
+            had_input_image=request.input_image_data is not None,
         )
 
         # Start async generation
@@ -147,6 +161,7 @@ class AzureOpenAIService:
             # Update status to processing
             self.video_jobs[video_id].status = "queued"
             self.video_jobs[video_id].progress = 10
+            self.history.update_entry(video_id, status="queued")
 
             logger.info(f"Starting video generation - Video ID: {video_id}")
 
@@ -164,6 +179,7 @@ class AzureOpenAIService:
         except Exception as e:
             self.video_jobs[video_id].status = "failed"
             self.video_jobs[video_id].progress = 0
+            self.history.update_entry(video_id, status="failed")
             logger.error(
                 f"Error generating video - Video ID: {video_id}, Error type: {type(e).__name__}, Error: {e}"
             )
@@ -355,31 +371,54 @@ class AzureOpenAIService:
                     logger.info(f"Video generation completed - Video ID: {video_id}")
                     # Download the video
                     try:
+                        video_content = None
                         if self.custom_video_url:
-                            # For custom URL, we would need a download endpoint
-                            # For now, store a placeholder
-                            self.video_jobs[video_id].video_url = (
-                                f"data:video/mp4;base64,{video_id}"
+                            # For custom URL, download via HTTP
+                            download_url = (
+                                f"{self.custom_video_url}/{azure_video_id}/content"
                             )
+                            headers = {"api-key": self.api_key}
+
+                            async with httpx.AsyncClient(timeout=120.0) as client:
+                                response = await client.get(
+                                    download_url, headers=headers
+                                )
+                                response.raise_for_status()
+                                video_content = response.content
                         else:
-                            _ = self.client.videos.download_content(
+                            # Use SDK to download
+                            video_content = self.client.videos.download_content(
                                 azure_video_id, variant="video"
                             )
-                            # For now, we'll store a placeholder URL
-                            # In a real scenario, you'd save the content to storage
-                            self.video_jobs[video_id].video_url = (
-                                f"data:video/mp4;base64,{video_id}"
+
+                        if video_content:
+                            # Save video to disk
+                            file_path = self.history.save_video(video_id, video_content)
+                            file_size = len(video_content)
+
+                            # Update job with local video URL
+                            self.video_jobs[video_id].video_url = f"/videos/{video_id}"
+
+                            # Update history
+                            self.history.update_entry(
+                                video_id,
+                                status="completed",
+                                file_path=file_path,
+                                file_size_bytes=file_size,
                             )
-                        logger.info(
-                            f"Video downloaded successfully - Video ID: {video_id}"
-                        )
+
+                            logger.info(
+                                f"Video downloaded and saved - Video ID: {video_id}, Size: {file_size} bytes"
+                            )
                     except Exception as e:
                         logger.error(
                             f"Error downloading video - Video ID: {video_id}, Error: {e}"
                         )
+                        self.history.update_entry(video_id, status="completed")
                     break
                 elif status in ["failed", "cancelled"]:
                     self.video_jobs[video_id].progress = 0
+                    self.history.update_entry(video_id, status=status)
                     logger.error(f"Video generation {status} - Video ID: {video_id}")
                     break
 

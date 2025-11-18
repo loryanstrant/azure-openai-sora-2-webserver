@@ -41,7 +41,7 @@ COPY app/ ./app/
 COPY static/ ./static/
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/logs \
+RUN mkdir -p /app/logs /app/data /app/data/videos \
     && chown -R appuser:appuser /app \
     && chmod -R 755 /app
 
@@ -62,6 +62,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV TZ=UTC
+
+# Volume for persistent video storage
+VOLUME ["/app/data"]
 
 # Run the application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

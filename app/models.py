@@ -1,5 +1,6 @@
 """Data models for the Azure OpenAI Sora service."""
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -55,3 +56,19 @@ class VideoStatus(BaseModel):
     video_url: str | None = None
     revised_prompt: str | None = None
     azure_video_id: str | None = None  # The video ID from Azure API
+
+
+class VideoHistoryEntry(BaseModel):
+    """Model for video generation history entry."""
+
+    video_id: str
+    prompt: str
+    resolution: str
+    seconds: int
+    had_input_image: bool
+    created_at: datetime
+    completed_at: datetime | None = None
+    status: str
+    file_path: str | None = None
+    file_size_bytes: int | None = None
+    revised_prompt: str | None = None

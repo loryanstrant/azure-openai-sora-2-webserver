@@ -6,6 +6,8 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 - **Modern FastAPI Web Server**: Built with FastAPI using modern async patterns and lifespan handlers
 - **Web Interface**: Intuitive HTML/CSS/JavaScript frontend for easy video generation
+- **Video History**: View all generated videos with metadata and playback in the web interface
+- **Persistent Storage**: Videos are downloaded and saved locally with volume mount support
 - **RESTful API**: Complete API with automatic documentation via FastAPI
 - **Azure OpenAI Integration**: Seamless connection to Azure OpenAI Sora 2 video generation
 - **Containerized**: Multi-stage Docker build with security best practices
@@ -31,6 +33,7 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`). Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | Yes (if `AZURE_OPENAI_VIDEO_URL` not set) | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
 | `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version for video generation. Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | No | `2024-08-01-preview` |
+| `VIDEO_STORAGE_DIR` | Directory path for storing generated videos and history | No | `/app/data` |
 | `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
 
 ### Configuration Modes
@@ -120,6 +123,7 @@ This mode automatically constructs URLs in the format:
    docker run -d \
      --name sora-webserver \
      -p 8000:8000 \
+     -v $(pwd)/data:/app/data \
      -e AZURE_OPENAI_API_KEY="your-api-key" \
      -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
      -e TZ="America/New_York" \
@@ -131,13 +135,16 @@ This mode automatically constructs URLs in the format:
    docker run -d \
      --name sora-webserver \
      -p 8000:8000 \
+     -v $(pwd)/data:/app/data \
      -e AZURE_OPENAI_API_KEY="your-api-key" \
      -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
      -e TZ="America/New_York" \
      azure-openai-sora-webserver
    ```
 
-   **Note**: Set `TZ` to your local timezone for accurate log timestamps (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `UTC` if not specified.
+   **Notes**: 
+   - The `-v $(pwd)/data:/app/data` mount creates a persistent volume for storing generated videos and history
+   - Set `TZ` to your local timezone for accurate log timestamps (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `UTC` if not specified.
 
 3. **Access the application**
    - Web Interface: http://localhost:8000
@@ -153,6 +160,7 @@ docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
 docker run -d \
   --name sora-webserver \
   -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
   -e AZURE_OPENAI_API_KEY="your-api-key" \
   -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
   -e TZ="America/New_York" \
@@ -165,6 +173,7 @@ docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
 docker run -d \
   --name sora-webserver \
   -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
   -e AZURE_OPENAI_API_KEY="your-api-key" \
   -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
   -e TZ="America/New_York" \
@@ -182,6 +191,7 @@ docker run -d \
 5. **(Optional)** Upload a reference image for image-to-video generation
 6. Click "Generate Video"
 7. Monitor progress and view the generated video
+8. View all generated videos at http://localhost:8000/static/history.html
 
 ### API Endpoints
 
@@ -212,6 +222,16 @@ input_image: <file upload>
 #### Check Video Status
 ```bash
 GET /status/{video_id}
+```
+
+#### Get Video History
+```bash
+GET /history
+```
+
+#### Download Video
+```bash
+GET /videos/{video_id}
 ```
 
 #### Health Check
