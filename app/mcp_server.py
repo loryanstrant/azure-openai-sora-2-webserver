@@ -13,6 +13,7 @@ at import time, so it can't be imported directly).
 import os
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -35,9 +36,27 @@ def _svc():
     return _service
 
 
+# The MCP SDK's DNS-rebinding protection only allows localhost Host headers by
+# default, which 421s remote/LAN callers. This server is deployed LAN/VPN-only
+# (and optionally gated by MCP_AUTH_TOKEN), so disable that host check to let
+# other systems drive batch jobs. Restrict to specific hosts via
+# MCP_ALLOWED_HOSTS (comma-separated) if you'd rather not disable it.
+_allowed_hosts = [
+    h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()
+]
+if _allowed_hosts:
+    _security = TransportSecuritySettings(allowed_hosts=_allowed_hosts)
+else:
+    _security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+
 # streamable_http_path="/" so that, when mounted at "/mcp" by the FastAPI app,
 # the endpoint is reachable at "/mcp/" instead of "/mcp/mcp".
-mcp = FastMCP("azure-sora", stateless_http=True, streamable_http_path="/")
+mcp = FastMCP(
+    "azure-sora",
+    stateless_http=True,
+    streamable_http_path="/",
+    transport_security=_security,
+)
 
 
 @mcp.tool()
