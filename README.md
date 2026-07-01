@@ -2,6 +2,14 @@
 
 A production-ready, containerized web server that connects to Azure OpenAI's Sora 2 model to generate videos. This application provides both a modern web interface and RESTful API endpoints for video generation.
 
+## 📸 Screenshots
+
+Single page — video history on the left, creation form + batch queue on the right.
+
+| Light | Dark |
+|-------|------|
+| ![Light mode](docs/screenshots/light.png) | ![Dark mode](docs/screenshots/dark.png) |
+
 ## 🚀 Features
 
 - **Single-page Web Interface**: Video history on the left (file name, download, date,
