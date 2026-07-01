@@ -140,3 +140,31 @@ def test_add_entry_and_download_name(temp_storage_dir):
     )
     assert history.get_download_name("vid-named") == "My Clip.mp4"
     assert history.get_download_name("vid-plain") == "vid-plain.mp4"
+
+
+def test_reset_entry(temp_storage_dir):
+    from app.services.history import HistoryService
+
+    history = HistoryService(storage_dir=temp_storage_dir)
+    history.add_entry("vid", "p", "1280x720", 4, False)
+    history.update_entry(
+        "vid", status="completed", file_path="/x.mp4", file_size_bytes=10
+    )
+    history.reset_entry("vid")
+    entry = history.get_entry("vid")
+    assert entry.status == "pending"
+    assert entry.file_path is None
+    assert entry.file_size_bytes is None
+    assert entry.completed_at is None
+
+
+def test_input_image_persist_reload_and_delete(temp_storage_dir):
+    from app.services.history import HistoryService
+
+    history = HistoryService(storage_dir=temp_storage_dir)
+    path = history.save_input_image("vid-i", b"imgbytes")
+    history.add_entry("vid-i", "p", "1280x720", 4, True, input_path=path)
+    assert history.get_input_image("vid-i") == b"imgbytes"
+    # Deleting the entry removes the persisted input image too.
+    history.delete_entry("vid-i")
+    assert history.get_input_image("vid-i") is None

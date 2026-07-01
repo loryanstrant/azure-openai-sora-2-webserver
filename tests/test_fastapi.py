@@ -68,6 +68,18 @@ def test_mcp_mounted():
     assert any(getattr(r, "path", None) == "/mcp" for r in app.routes)
 
 
+def test_health_reports_max_concurrent(client):
+    """/health should expose the worker-pool concurrency."""
+    data = client.get("/health").json()
+    assert data["max_concurrent_jobs"] == 4
+
+
+def test_retry_unknown_returns_404(client):
+    """Retrying an unknown video id should 404."""
+    response = client.post("/retry/does-not-exist")
+    assert response.status_code == 404
+
+
 def test_app_routes_exist(client):
     """Test that all expected routes exist and return proper status codes."""
     # Health endpoint should work
