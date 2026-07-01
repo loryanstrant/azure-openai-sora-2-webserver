@@ -15,7 +15,7 @@ def client(mock_env_vars):
     mock_service = MagicMock()
 
     # Make the async methods return coroutines
-    async def mock_generate_video(request):
+    async def mock_generate_video(request, filename=None):
         return "test-video-id-123"
 
     mock_service.generate_video = mock_generate_video
@@ -115,7 +115,7 @@ def test_api_error_handling(client):
     """Test API error handling."""
 
     # Override the mock to raise an exception
-    async def mock_generate_video_error(request):
+    async def mock_generate_video_error(request, filename=None):
         raise Exception("Azure API Error")
 
     client.mock_service.generate_video = mock_generate_video_error
@@ -147,7 +147,7 @@ def test_complete_video_workflow_simulation(client):
     from app.models import VideoStatus
 
     # Override the mock for this test
-    async def mock_generate_workflow(request):
+    async def mock_generate_workflow(request, filename=None):
         return "workflow-test-id"
 
     client.mock_service.generate_video = mock_generate_workflow

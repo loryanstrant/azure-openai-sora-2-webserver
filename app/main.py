@@ -17,7 +17,7 @@ from .models import (
 from .services.azure_openai import AzureOpenAIService
 
 # Application version
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 # Configure logging
 logging.basicConfig(
@@ -90,6 +90,7 @@ async def generate_video(
     prompt: str = Form(...),
     resolution: str = Form(default="1280x720"),
     seconds: int = Form(default=4),
+    filename: str = Form(default=""),
     input_image: UploadFile | str | None = File(default=None),
 ):
     """Generate a video using Azure OpenAI Sora.
@@ -98,6 +99,7 @@ async def generate_video(
         prompt: Video description prompt
         resolution: Video resolution (1280x720 or 720x1280)
         seconds: Video duration in seconds (4, 8, or 12)
+        filename: Optional download filename for the finished video
         input_image: Optional input reference image for image-to-video generation
     """
     try:
@@ -138,7 +140,9 @@ async def generate_video(
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
 
-        video_id = await azure_service.generate_video(request)
+        video_id = await azure_service.generate_video(
+            request, filename=filename or None
+        )
         return {"video_id": video_id, "status": "pending"}
     except HTTPException:
         raise
@@ -182,7 +186,7 @@ async def get_video(video_id: str):
     return FileResponse(
         video_path,
         media_type="video/mp4",
-        filename=f"{video_id}.mp4",
+        filename=azure_service.history.get_download_name(video_id),
     )
 
 

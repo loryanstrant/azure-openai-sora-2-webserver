@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,19 @@ from typing import Any
 from ..models import VideoHistoryEntry
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_filename(name: str | None) -> str | None:
+    """Reduce a user-supplied name to a safe .mp4 download filename, or None."""
+    if not name:
+        return None
+    name = name.strip().replace("/", "_").replace("\\", "_")
+    name = re.sub(r"[^A-Za-z0-9 ._-]", "", name).strip(" ._-")
+    if not name:
+        return None
+    if not name.lower().endswith(".mp4"):
+        name += ".mp4"
+    return name[:120]
 
 
 class HistoryService:
@@ -65,6 +79,7 @@ class HistoryService:
         resolution: str,
         seconds: int,
         had_input_image: bool,
+        filename: str | None = None,
     ) -> None:
         """Add a new video generation entry to history.
 
@@ -74,6 +89,7 @@ class HistoryService:
             resolution: Video resolution
             seconds: Video duration in seconds
             had_input_image: Whether an input image was provided
+            filename: Optional user-chosen download filename
         """
         entry = {
             "video_id": video_id,
@@ -87,6 +103,7 @@ class HistoryService:
             "file_path": None,
             "file_size_bytes": None,
             "revised_prompt": None,
+            "filename": sanitize_filename(filename),
         }
         self._history[video_id] = entry
         self._save_history()
@@ -183,6 +200,13 @@ class HistoryService:
             if path.exists():
                 return path
         return None
+
+    def get_download_name(self, video_id: str) -> str:
+        """Return the user-chosen filename for a video, or a default."""
+        entry = self._history.get(video_id)
+        if entry and entry.get("filename"):
+            return entry["filename"]
+        return f"{video_id}.mp4"
 
     def save_video(self, video_id: str, content: bytes) -> str:
         """Save video content to disk.

@@ -111,7 +111,9 @@ class AzureOpenAIService:
 
     # -------------------------------------------------------------- lifecycle
 
-    async def generate_video(self, request: VideoGenerationRequest) -> str:
+    async def generate_video(
+        self, request: VideoGenerationRequest, filename: str | None = None
+    ) -> str:
         """Register a new generation job and kick off the background worker."""
         video_id = str(uuid.uuid4())
 
@@ -125,6 +127,7 @@ class AzureOpenAIService:
             resolution=request.resolution.value,
             seconds=request.seconds,
             had_input_image=request.input_image_data is not None,
+            filename=filename,
         )
 
         asyncio.create_task(self._run_job(request, video_id))
