@@ -6,13 +6,15 @@ python-multipart>=0.0.6
 # Data validation and settings management
 pydantic>=2.4.0
 
-# Azure OpenAI client
-openai>=1.30.0
+# HTTP client for the Azure Sora 2 REST API (also used by TestClient)
+httpx>=0.25.0
+
+# MCP server (streamable-HTTP transport, mounted in the FastAPI app)
+mcp>=1.2.0
 
 # Testing dependencies
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-httpx>=0.25.0
 
 # Development dependencies
 python-dotenv>=1.0.0

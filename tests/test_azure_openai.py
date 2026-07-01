@@ -1,266 +1,269 @@
-"""Tests for Azure OpenAI service."""
+"""Tests for the Azure OpenAI Sora 2 service (raw REST via httpx)."""
 
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
-from app.models import VideoGenerationRequest, VideoResolution
-from app.services.azure_openai import AzureOpenAIService
+from app.models import VideoGenerationRequest, VideoResolution, VideoStatus
+from app.services.azure_openai import (
+    AzureOpenAIService,
+    _normalize_status,
+)
 
 
 @pytest.fixture
 def azure_service(mock_env_vars):
     """Create an Azure OpenAI service instance for testing."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
-        service = AzureOpenAIService()
-        # Mock the client.videos methods
-        service.client = MagicMock()
-        service.client.videos = MagicMock()
-        service.client.videos.create = MagicMock()
-        service.client.videos.retrieve = MagicMock()
-        service.client.videos.download_content = MagicMock()
-        return service
+    return AzureOpenAIService()
+
+
+def _mock_response(json_data=None, content=b"", status_code=200):
+    """Build a MagicMock that mimics an httpx.Response."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data or {}
+    resp.content = content
+    resp.raise_for_status.return_value = None
+    return resp
+
+
+def _patch_async_client(post=None, get=None):
+    """Patch httpx.AsyncClient with mocked post/get and return the context manager."""
+    client = MagicMock()
+    client.post = AsyncMock(return_value=post)
+    client.get = AsyncMock(return_value=get)
+    async_cm = MagicMock()
+    async_cm.__aenter__ = AsyncMock(return_value=client)
+    async_cm.__aexit__ = AsyncMock(return_value=False)
+    return patch("httpx.AsyncClient", return_value=async_cm), client
+
+
+# --------------------------------------------------------------------- config
+
+
+def test_service_initialization_logging(mock_env_vars, caplog):
+    """Initialization should log endpoint/model and mask the API key."""
+    with caplog.at_level(logging.INFO):
+        _ = AzureOpenAIService()
+
+    assert any("Azure OpenAI Service initialized" in r.message for r in caplog.records)
+    assert any(
+        "Endpoint: https://test.openai.azure.com" in r.message for r in caplog.records
+    )
+    assert any("Model: sora-2" in r.message for r in caplog.records)
+    assert any("API Key:" in r.message and "***" in r.message for r in caplog.records)
+    assert not any("test-api-key" == r.message for r in caplog.records)
+
+
+def test_endpoint_is_normalized(azure_service: AzureOpenAIService):
+    """Trailing slash and any /openai path should be stripped from the base."""
+    assert azure_service.endpoint == "https://test.openai.azure.com"
+    assert azure_service._jobs_url() == (
+        "https://test.openai.azure.com/openai/v1/video/generations/jobs"
+        "?api-version=preview"
+    )
+
+
+# --------------------------------------------------------------------- create
 
 
 @pytest.mark.asyncio
 async def test_generate_video_success(azure_service: AzureOpenAIService):
-    """Test successful video generation."""
+    """generate_video should register a pending job and return its id."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
         resolution=VideoResolution.LANDSCAPE,
         seconds=4,
     )
 
-    with patch.object(azure_service, "_generate_video_async") as mock_async:
-        mock_async.return_value = None
-
+    with patch.object(azure_service, "_run_job", new=AsyncMock()):
         video_id = await azure_service.generate_video(request)
 
-        assert video_id is not None
-        assert video_id in azure_service.video_jobs
-        assert azure_service.video_jobs[video_id].status == "pending"
+    assert video_id in azure_service.video_jobs
+    assert azure_service.video_jobs[video_id].status == "pending"
 
 
-def test_call_sora_api_success(azure_service: AzureOpenAIService):
-    """Test successful Sora 2 API call."""
+@pytest.mark.asyncio
+async def test_create_job_builds_correct_body(azure_service: AzureOpenAIService):
+    """Text-to-video POST must target the jobs URL with the right body/headers."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
         resolution=VideoResolution.LANDSCAPE,
+        seconds=8,
+    )
+    post_resp = _mock_response({"id": "job_123", "status": "queued"})
+    patcher, client = _patch_async_client(post=post_resp)
+
+    with patcher:
+        job_id = await azure_service._create_job(request)
+
+    assert job_id == "job_123"
+    args, kwargs = client.post.call_args
+    assert args[0] == (
+        "https://test.openai.azure.com/openai/v1/video/generations/jobs"
+        "?api-version=preview"
+    )
+    assert kwargs["json"] == {
+        "prompt": "A beautiful sunset",
+        "width": 1280,
+        "height": 720,
+        "n_seconds": 8,
+        "model": "sora-2",
+    }
+    assert kwargs["headers"]["api-key"] == "test-api-key"
+
+
+@pytest.mark.asyncio
+async def test_create_job_resolution_split(azure_service: AzureOpenAIService):
+    """Portrait resolution should map to width=720, height=1280."""
+    request = VideoGenerationRequest(
+        prompt="tall video",
+        resolution=VideoResolution.PORTRAIT,
         seconds=4,
     )
+    post_resp = _mock_response({"id": "job_p", "status": "queued"})
+    patcher, client = _patch_async_client(post=post_resp)
 
-    # Mock the API response for Sora 2
-    mock_video = MagicMock()
-    mock_video.id = "video_123456"
-    mock_video.status = "queued"
-    mock_video.progress = 0
+    with patcher:
+        await azure_service._create_job(request)
 
-    azure_service.client.videos.create.return_value = mock_video
-
-    result = azure_service._call_sora_api(request)
-
-    assert result is not None
-    assert result["id"] == "video_123456"
-    assert result["status"] == "queued"
-
-    # Verify the API was called with correct parameters
-    azure_service.client.videos.create.assert_called_once_with(
-        model="sora-2",
-        prompt="A beautiful sunset",
-        size="1280x720",
-        seconds="4",
-    )
+    body = client.post.call_args.kwargs["json"]
+    assert body["width"] == 720
+    assert body["height"] == 1280
 
 
-def test_call_sora_api_failure(azure_service: AzureOpenAIService):
-    """Test Sora 2 API call failure."""
+@pytest.mark.asyncio
+async def test_create_job_multipart_when_image(azure_service: AzureOpenAIService):
+    """Image-to-video must send multipart files + inpaint_items, no Content-Type."""
     request = VideoGenerationRequest(
-        prompt="A beautiful sunset",
+        prompt="animate this",
         resolution=VideoResolution.LANDSCAPE,
         seconds=4,
+        input_image_data=b"fake_image_bytes",
     )
+    post_resp = _mock_response({"id": "job_img", "status": "queued"})
+    patcher, client = _patch_async_client(post=post_resp)
 
-    # Mock API exception
-    azure_service.client.videos.create.side_effect = Exception("API Error")
+    with patcher:
+        job_id = await azure_service._create_job(request)
 
-    with pytest.raises(Exception, match="API Error"):
-        azure_service._call_sora_api(request)
+    assert job_id == "job_img"
+    kwargs = client.post.call_args.kwargs
+    assert "files" in kwargs and kwargs["files"]["files"][1] == b"fake_image_bytes"
+    assert kwargs["data"]["width"] == "1280"
+    assert kwargs["data"]["n_seconds"] == "4"
+    assert isinstance(kwargs["data"]["inpaint_items"], str)
+    assert "Content-Type" not in kwargs["headers"]
 
 
-def test_call_sora_api_with_input_image(azure_service: AzureOpenAIService):
-    """Test Sora 2 API call with input reference image."""
-    # Create a mock image data
-    mock_image_data = b"fake_image_data"
-
+@pytest.mark.asyncio
+async def test_create_job_http_error(azure_service: AzureOpenAIService):
+    """A non-2xx create response should raise with the status + body."""
     request = VideoGenerationRequest(
-        prompt="Continue the scene",
-        resolution=VideoResolution.LANDSCAPE,
-        seconds=4,
-        input_image_data=mock_image_data,
+        prompt="boom", resolution=VideoResolution.LANDSCAPE, seconds=4
+    )
+    err_resp = MagicMock()
+    err_resp.status_code = 400
+    err_resp.text = "bad request"
+    err_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "400", request=MagicMock(), response=err_resp
+    )
+    patcher, _ = _patch_async_client(post=err_resp)
+
+    with patcher, pytest.raises(Exception, match="400"):
+        await azure_service._create_job(request)
+
+
+# --------------------------------------------------------------------- status
+
+
+@pytest.mark.parametrize(
+    "azure_status,expected",
+    [
+        ("queued", "queued"),
+        ("preprocessing", "in_progress"),
+        ("running", "in_progress"),
+        ("processing", "in_progress"),
+        ("succeeded", "completed"),
+        ("failed", "failed"),
+        ("cancelled", "cancelled"),
+        ("something_new", "in_progress"),
+    ],
+)
+def test_status_normalization(azure_status, expected):
+    assert _normalize_status(azure_status) == expected
+
+
+@pytest.mark.asyncio
+async def test_poll_job_success_downloads(azure_service: AzureOpenAIService):
+    """On succeeded, poll must download via the generation_id (not the job_id)."""
+    video_id = "vid-1"
+    azure_service.video_jobs[video_id] = VideoStatus(
+        video_id=video_id, status="queued", progress=10
     )
 
-    # Mock the API response for Sora 2
-    mock_video = MagicMock()
-    mock_video.id = "video_with_image_123"
-    mock_video.status = "queued"
-    mock_video.progress = 0
+    poll_resp = _mock_response(
+        {"status": "succeeded", "generations": [{"id": "gen_abc"}]}
+    )
+    download_resp = _mock_response(content=b"MP4DATA")
+    patcher, client = _patch_async_client(get=None)
+    # First GET = poll, second GET = download
+    client.get = AsyncMock(side_effect=[poll_resp, download_resp])
 
-    azure_service.client.videos.create.return_value = mock_video
+    with patcher, patch("asyncio.sleep", new=AsyncMock()):
+        await azure_service._poll_job(video_id, "job_xyz")
 
-    result = azure_service._call_sora_api(request)
+    status = azure_service.video_jobs[video_id]
+    assert status.status == "completed"
+    assert status.progress == 100
+    assert status.azure_generation_id == "gen_abc"
+    # The download URL must use the generation id, not the job id.
+    download_url = client.get.call_args_list[-1].args[0]
+    assert "video/generations/gen_abc/content/video" in download_url
+    assert "job_xyz" not in download_url
 
-    assert result is not None
-    assert result["id"] == "video_with_image_123"
-    assert result["status"] == "queued"
 
-    # Verify the API was called with input_reference parameter
-    call_args = azure_service.client.videos.create.call_args
-    assert call_args is not None
-    assert "input_reference" in call_args.kwargs
-    # Check that input_reference is a file-like object
-    assert hasattr(call_args.kwargs["input_reference"], "read")
+@pytest.mark.asyncio
+async def test_poll_job_failed(azure_service: AzureOpenAIService):
+    """A failed job should mark the internal status failed and stop polling."""
+    video_id = "vid-2"
+    azure_service.video_jobs[video_id] = VideoStatus(
+        video_id=video_id, status="queued", progress=10
+    )
+    poll_resp = _mock_response({"status": "failed"})
+    patcher, client = _patch_async_client()
+    client.get = AsyncMock(return_value=poll_resp)
+
+    with patcher, patch("asyncio.sleep", new=AsyncMock()):
+        await azure_service._poll_job(video_id, "job_f")
+
+    assert azure_service.video_jobs[video_id].status == "failed"
+    assert azure_service.video_jobs[video_id].progress == 0
+
+
+# --------------------------------------------------------------------- queries
 
 
 def test_get_video_status_existing(azure_service: AzureOpenAIService):
-    """Test getting status for existing video job."""
-    from app.models import VideoStatus
-
-    test_status = VideoStatus(video_id="test-id", status="processing", progress=50)
-
+    test_status = VideoStatus(video_id="test-id", status="in_progress", progress=50)
     azure_service.video_jobs["test-id"] = test_status
-
     result = azure_service.get_video_status("test-id")
-
     assert result == test_status
-    assert result.video_id == "test-id"
-    assert result.status == "processing"
     assert result.progress == 50
 
 
 def test_get_video_status_non_existent(azure_service: AzureOpenAIService):
-    """Test getting status for non-existent video job."""
-    result = azure_service.get_video_status("non-existent-id")
-    assert result is None
+    assert azure_service.get_video_status("non-existent-id") is None
 
 
 def test_cleanup_old_jobs(azure_service: AzureOpenAIService):
-    """Test cleanup of old video jobs."""
-    from app.models import VideoStatus
-
-    # Add many jobs to trigger cleanup
     for i in range(150):
         job_id = f"job-{i}"
         azure_service.video_jobs[job_id] = VideoStatus(
             video_id=job_id, status="completed", progress=100
         )
-
-    initial_count = len(azure_service.video_jobs)
-    assert initial_count == 150
-
+    assert len(azure_service.video_jobs) == 150
     azure_service.cleanup_old_jobs()
-
-    # Should keep only 50 most recent jobs
     assert len(azure_service.video_jobs) == 50
-
-
-def test_service_initialization_logging(mock_env_vars, caplog):
-    """Test that service initialization logs correctly."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
-        with caplog.at_level(logging.INFO):
-            _ = AzureOpenAIService()
-
-            # Check that initialization log was created
-            assert any(
-                "Azure OpenAI Service initialized" in record.message
-                for record in caplog.records
-            )
-            assert any(
-                "Endpoint: https://test.openai.azure.com/" in record.message
-                for record in caplog.records
-            )
-            assert any("Model: sora-2" in record.message for record in caplog.records)
-            # Check that API key is masked (either *** for short keys or partial masking for long keys)
-            assert any(
-                "API Key:" in record.message and "***" in record.message
-                for record in caplog.records
-            )
-            # Ensure full API key is NOT logged
-            assert not any(
-                "test-key-12345678" in record.message for record in caplog.records
-            )
-
-
-def test_call_sora_api_logging(azure_service: AzureOpenAIService, caplog):
-    """Test that API calls are logged with details."""
-    request = VideoGenerationRequest(
-        prompt="A beautiful sunset",
-        resolution=VideoResolution.LANDSCAPE,
-        seconds=4,
-    )
-
-    # Mock response
-    mock_response = MagicMock()
-    mock_response.id = "test-video-id"
-    mock_response.status = "queued"
-    azure_service.client.videos.create.return_value = mock_response
-    azure_service.client.base_url = "https://test.openai.azure.com/"
-    azure_service.client._custom_query = {"api-version": "2024-08-01-preview"}
-
-    with caplog.at_level(logging.INFO):
-        _ = azure_service._call_sora_api(request)
-
-        # Check that API call was logged
-        assert any(
-            "Calling Sora API with text-to-video" in record.message
-            for record in caplog.records
-        )
-        assert any(
-            "Prompt: 'A beautiful sunset'" in record.message
-            for record in caplog.records
-        )
-        assert any(
-            "Resolution: 1280x720" in record.message for record in caplog.records
-        )
-        assert any("Duration: 4s" in record.message for record in caplog.records)
-
-        # Check that response was logged
-        assert any(
-            "Sora API response received" in record.message for record in caplog.records
-        )
-        assert any(
-            "Video ID: test-video-id" in record.message for record in caplog.records
-        )
-
-
-def test_azure_service_initializes_with_deployment(mock_env_vars):
-    """Test that AzureOpenAI client is initialized with deployment in endpoint URL.
-
-    This test verifies the fix for the 404 error where the URL path was missing
-    the deployment name. The endpoint URL should include /openai/deployments/{deployment-name}/
-    to ensure URLs are constructed as /openai/deployments/{deployment-name}/videos
-    instead of /openai/videos.
-    """
-    with patch("app.services.azure_openai.AzureOpenAI") as mock_azure_openai:
-        mock_client = MagicMock()
-        mock_azure_openai.return_value = mock_client
-
-        _ = AzureOpenAIService()
-
-        # Verify AzureOpenAI was called once
-        mock_azure_openai.assert_called_once()
-
-        # Get the call arguments
-        call_kwargs = mock_azure_openai.call_args.kwargs
-
-        # Verify deployment is included in the endpoint URL
-        assert "azure_endpoint" in call_kwargs
-        assert "/openai/deployments/sora-2/" in call_kwargs["azure_endpoint"]
-        assert (
-            call_kwargs["azure_endpoint"]
-            == "https://test.openai.azure.com/openai/deployments/sora-2/"
-        )
-
-        # Verify other required parameters are also present
-        assert call_kwargs["api_key"] == "test-api-key"
-        assert call_kwargs["api_version"] == "2024-08-01-preview"

@@ -5,366 +5,642 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azure OpenAI Sora 2 Video Generator</title>
     <style>
+        :root {
+            --bg: #f0f2f5;
+            --panel: #ffffff;
+            --panel-alt: #f7f8fa;
+            --border: #e0e3e8;
+            --text: #1f2430;
+            --text-muted: #6b7280;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --accent-contrast: #ffffff;
+            --shadow: 0 2px 12px rgba(0,0,0,0.08);
+            --ok: #2e7d32;
+            --ok-bg: #e8f5e8;
+            --err: #c62828;
+            --err-bg: #ffebee;
+            --info: #1976d2;
+            --info-bg: #e3f2fd;
+        }
+
+        [data-theme="dark"] {
+            --bg: #14171c;
+            --panel: #1e222a;
+            --panel-alt: #262b34;
+            --border: #333a45;
+            --text: #e6e9ef;
+            --text-muted: #9aa4b2;
+            --accent: #4f9dff;
+            --accent-hover: #6fb0ff;
+            --accent-contrast: #0b0e12;
+            --shadow: 0 2px 12px rgba(0,0,0,0.5);
+            --ok: #7fd68a;
+            --ok-bg: #1c2d1f;
+            --err: #f2a0a0;
+            --err-bg: #34211f;
+            --info: #86bcff;
+            --info-bg: #1b2735;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
+            background: var(--bg);
+            color: var(--text);
+            transition: background 0.2s, color 0.2s;
         }
-        
-        .container {
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
         }
-        
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        
-        .header-info {
-            text-align: center;
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
             margin-bottom: 20px;
-            color: #666;
+            flex-wrap: wrap;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+
+        .topbar-meta {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .topbar-meta a { color: var(--accent); text-decoration: none; }
+        .topbar-meta a:hover { text-decoration: underline; }
+
+        .theme-toggle {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
             font-size: 14px;
         }
-        
-        .header-info a {
-            color: #0066cc;
-            text-decoration: none;
+        .theme-toggle:hover { border-color: var(--accent); }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
         }
-        
-        .header-info a:hover {
-            text-decoration: underline;
+
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
         }
-        
-        .version {
-            color: #999;
-            font-size: 12px;
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 22px;
+            box-shadow: var(--shadow);
         }
-        
-        .form-group {
-            margin-bottom: 20px;
+
+        .panel h2 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
         }
-        
+
+        /* ---- Form ---- */
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 6px;
             font-weight: 600;
-            color: #555;
+            color: var(--text);
+            font-size: 14px;
         }
-        
+
         input, select, textarea {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-            box-sizing: border-box;
+            padding: 11px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 15px;
+            background: var(--panel-alt);
+            color: var(--text);
         }
-        
-        textarea {
-            height: 100px;
-            resize: vertical;
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
         }
-        
-        button {
-            background: #0066cc;
-            color: white;
+
+        textarea { height: 100px; resize: vertical; }
+
+        .form-group { margin-bottom: 16px; }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .hint { color: var(--text-muted); font-size: 12px; display: block; margin-top: 5px; }
+
+        button.primary {
+            background: var(--accent);
+            color: var(--accent-contrast);
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
-            font-size: 16px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
             width: 100%;
-            margin-top: 10px;
+            margin-top: 6px;
         }
-        
-        button:hover {
-            background: #0052a3;
-        }
-        
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
+        button.primary:hover { background: var(--accent-hover); }
+        button.primary:disabled { background: var(--text-muted); cursor: not-allowed; }
+
         .status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 4px;
+            margin-top: 18px;
+            padding: 14px;
+            border-radius: 6px;
             display: none;
+            font-size: 14px;
         }
-        
-        .status.info {
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            color: #1976d2;
-        }
-        
-        .status.success {
-            background: #e8f5e8;
-            border: 1px solid #4caf50;
-            color: #2e7d32;
-        }
-        
-        .status.error {
-            background: #ffebee;
-            border: 1px solid #f44336;
-            color: #c62828;
-        }
-        
+        .status.info { background: var(--info-bg); color: var(--info); }
+        .status.success { background: var(--ok-bg); color: var(--ok); }
+        .status.error { background: var(--err-bg); color: var(--err); }
+
         .progress {
             width: 100%;
-            height: 20px;
-            background: #f0f0f0;
+            height: 18px;
+            background: var(--panel-alt);
+            border: 1px solid var(--border);
             border-radius: 10px;
             overflow: hidden;
             margin-top: 10px;
         }
-        
         .progress-bar {
             height: 100%;
-            background: #4caf50;
+            background: var(--accent);
             transition: width 0.3s ease;
             width: 0%;
         }
-        
-        .video-result {
-            margin-top: 20px;
-            text-align: center;
+
+        .video-result { margin-top: 18px; text-align: center; }
+        .video-result video { max-width: 100%; border-radius: 8px; background: #000; }
+
+        /* ---- History list ---- */
+        .history-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
         }
-        
-        .video-result video {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
+        .history-head h2 { margin: 0; }
+        .search { flex: 1; max-width: 260px; }
+        .search input { padding: 8px 12px; font-size: 14px; }
+
+        .video-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 74vh;
+            overflow-y: auto;
         }
-        
-        .two-column {
+
+        .video-item {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            grid-template-columns: 22px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            background: var(--panel-alt);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            cursor: pointer;
         }
-        
-        @media (max-width: 600px) {
-            .two-column {
-                grid-template-columns: 1fr;
-            }
+        .video-item:hover { border-color: var(--accent); }
+
+        /* Colour-blind-safe status glyphs (shape + fill, not colour alone) */
+        .status-dot { font-size: 16px; line-height: 1; text-align: center; }
+        .status-dot.completed { color: var(--ok); }
+        .status-dot.failed, .status-dot.cancelled { color: var(--err); }
+        .status-dot.pending, .status-dot.queued, .status-dot.in_progress { color: var(--info); }
+
+        .video-body { min-width: 0; }
+        .video-filename {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        .download-icon {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .download-icon.disabled { color: var(--text-muted); opacity: 0.4; pointer-events: none; }
+        .video-prompt {
+            margin: 4px 0 2px 0;
+            font-size: 14px;
+            color: var(--text);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .video-date { font-size: 12px; color: var(--text-muted); }
+
+        .btn-delete {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--err);
+            border-radius: 6px;
+            padding: 6px 9px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-delete:hover { border-color: var(--err); }
+
+        .empty-state, .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        /* ---- Modal ---- */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--panel);
+            color: var(--text);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 860px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px; right: 12px;
+            width: 36px; height: 36px;
+            background: var(--err);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 22px;
+        }
+        .modal-video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 14px; }
+        .modal-meta { color: var(--text-muted); font-size: 13px; line-height: 1.7; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎥 Azure OpenAI Sora 2 Video Generator</h1>
-        <div class="header-info">
-            <span class="version" id="versionInfo">Loading version...</span>
-            <br>
-            <a href="/static/history.html">📜 View History</a>
-            ·
-            <a href="https://github.com/loryanstrant/azure-openai-sora-webserver" target="_blank" rel="noopener noreferrer">
-                📦 GitHub Repository
-            </a>
-        </div>
-        
-        <form id="videoForm">
-            <div class="form-group">
-                <label for="prompt">Video Description *</label>
-                <textarea 
-                    id="prompt" 
-                    name="prompt" 
-                    placeholder="Describe the video you want to generate. Be detailed and specific."
-                    required
-                ></textarea>
-            </div>
-            
-            <div class="two-column">
-                <div class="form-group">
-                    <label for="resolution">Resolution</label>
-                    <select id="resolution" name="resolution">
-                        <option value="1280x720">1280x720 (Landscape)</option>
-                        <option value="720x1280">720x1280 (Portrait)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="seconds">Duration (seconds)</label>
-                    <select id="seconds" name="seconds">
-                        <option value="4" selected>4 seconds</option>
-                        <option value="8">8 seconds</option>
-                        <option value="12">12 seconds</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="inputImage">Input Image (Optional)</label>
-                <input 
-                    type="file" 
-                    id="inputImage" 
-                    name="input_image" 
-                    accept="image/jpeg,image/png,image/webp"
-                >
-                <small style="color: #666; display: block; margin-top: 5px;">
-                    Upload a reference image for image-to-video generation. Accepted formats: JPEG, PNG, WebP. Image must match the selected resolution.
-                </small>
-            </div>
-            
-            <button type="submit" id="generateBtn">Generate Video</button>
-        </form>
-        
-        <div id="status" class="status">
-            <div id="statusText"></div>
-            <div class="progress" id="progressContainer" style="display: none;">
-                <div class="progress-bar" id="progressBar"></div>
+    <div class="page">
+        <div class="topbar">
+            <h1>🎥 Azure OpenAI Sora 2 Video Generator</h1>
+            <div class="topbar-meta">
+                <span id="versionInfo">Loading…</span>
+                <a href="https://gitea.strant.casa/loryanstrant/azure-openai-sora-2-webserver" target="_blank" rel="noopener noreferrer">Repository</a>
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">🌙 Dark</button>
             </div>
         </div>
-        
-        <div id="videoResult" class="video-result" style="display: none;">
-            <h3>Generated Video</h3>
-            <video controls id="resultVideo"></video>
-            <p id="revisedPrompt" style="margin-top: 15px; font-style: italic; color: #666;"></p>
+
+        <div class="layout">
+            <!-- LEFT: history -->
+            <section class="panel">
+                <div class="history-head">
+                    <h2>📜 Video History</h2>
+                    <div class="search"><input type="text" id="searchInput" placeholder="🔍 Search prompts…"></div>
+                </div>
+                <div id="loading" class="loading">Loading history…</div>
+                <div id="emptyState" class="empty-state" style="display:none;">No videos yet — create one on the right.</div>
+                <div id="videoList" class="video-list"></div>
+            </section>
+
+            <!-- RIGHT: create -->
+            <section class="panel">
+                <h2>✨ Create a Video</h2>
+                <form id="videoForm">
+                    <div class="form-group">
+                        <label for="prompt">Video Description *</label>
+                        <textarea id="prompt" name="prompt" placeholder="Describe the video you want to generate. Be detailed and specific." required></textarea>
+                    </div>
+
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label for="resolution">Resolution</label>
+                            <select id="resolution" name="resolution">
+                                <option value="1280x720">1280x720 (Landscape)</option>
+                                <option value="720x1280">720x1280 (Portrait)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="seconds">Duration</label>
+                            <select id="seconds" name="seconds">
+                                <option value="4" selected>4 seconds</option>
+                                <option value="8">8 seconds</option>
+                                <option value="12">12 seconds</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="inputImage">Input Image (Optional)</label>
+                        <input type="file" id="inputImage" name="input_image" accept="image/jpeg,image/png,image/webp">
+                        <small class="hint">Reference image for image-to-video. JPEG, PNG, or WebP; should match the selected resolution.</small>
+                    </div>
+
+                    <button type="submit" class="primary" id="generateBtn">Generate Video</button>
+                </form>
+
+                <div id="status" class="status">
+                    <div id="statusText"></div>
+                    <div class="progress" id="progressContainer" style="display:none;">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
+
+                <div id="videoResult" class="video-result" style="display:none;">
+                    <h3>Generated Video</h3>
+                    <video controls id="resultVideo"></video>
+                    <p id="revisedPrompt" style="margin-top:12px; font-style:italic; color:var(--text-muted);"></p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="videoModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">×</button>
+            <video id="modalVideo" class="modal-video" controls autoplay>
+                <source src="" type="video/mp4">
+            </video>
+            <h3 id="modalPrompt" style="margin:0 0 8px 0;"></h3>
+            <div class="modal-meta" id="modalMeta"></div>
         </div>
     </div>
 
     <script>
+        // ---------- Theme ----------
+        const themeToggle = document.getElementById('themeToggle');
+        function applyTheme(theme) {
+            document.documentElement.dataset.theme = theme;
+            themeToggle.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+        }
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            if (saved) { applyTheme(saved); return; }
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(prefersDark ? 'dark' : 'light');
+        }
+        themeToggle.addEventListener('click', () => {
+            const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', next);
+            applyTheme(next);
+        });
+        initTheme();
+
+        // ---------- Version ----------
+        async function fetchVersion() {
+            try {
+                const r = await fetch('/version');
+                const d = await r.json();
+                document.getElementById('versionInfo').textContent = `v${d.version}`;
+            } catch { document.getElementById('versionInfo').textContent = ''; }
+        }
+
+        // ---------- Helpers ----------
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : text;
+            return div.innerHTML;
+        }
+        function formatDate(iso) {
+            const d = new Date(iso);
+            return d.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+        function formatSize(bytes) {
+            if (!bytes) return '';
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        }
+        // Colour-blind-safe glyph: filled/half/open circle by state.
+        function statusGlyph(status) {
+            if (status === 'completed') return '●';
+            if (status === 'failed' || status === 'cancelled') return '○';
+            return '◐';
+        }
+
+        // ---------- History ----------
+        let allVideos = [];
+
+        function isPlayable(v) { return v.status === 'completed' && v.file_path; }
+
+        function createVideoItem(v) {
+            const item = document.createElement('div');
+            item.className = 'video-item';
+
+            const filename = `${v.video_id}.mp4`;
+            const downloadCls = isPlayable(v) ? 'download-icon' : 'download-icon disabled';
+            const sizeStr = v.file_size_bytes ? ` · ${formatSize(v.file_size_bytes)}` : '';
+
+            item.innerHTML = `
+                <div class="status-dot ${v.status}" title="${escapeHtml(v.status)}">${statusGlyph(v.status)}</div>
+                <div class="video-body">
+                    <div class="video-filename">
+                        <a class="${downloadCls}" href="/videos/${v.video_id}" download title="Download">⬇️</a>
+                        <span>${escapeHtml(filename)}</span>
+                    </div>
+                    <p class="video-prompt">${escapeHtml(v.prompt)}</p>
+                    <div class="video-date">📅 ${formatDate(v.created_at)} · 📐 ${escapeHtml(v.resolution)} · ⏱️ ${v.seconds}s${sizeStr}</div>
+                </div>
+                <button class="btn-delete" title="Delete">🗑️</button>
+            `;
+
+            item.querySelector('.btn-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteVideo(v.video_id);
+            });
+            item.querySelector('.download-icon').addEventListener('click', (e) => e.stopPropagation());
+            item.addEventListener('click', () => { if (isPlayable(v)) openModal(v); });
+
+            return item;
+        }
+
+        function renderVideos() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const list = document.getElementById('videoList');
+            const empty = document.getElementById('emptyState');
+            const filtered = allVideos.filter(v => (v.prompt || '').toLowerCase().includes(searchTerm));
+
+            list.innerHTML = '';
+            empty.style.display = filtered.length ? 'none' : 'block';
+            filtered.forEach(v => list.appendChild(createVideoItem(v)));
+        }
+
+        async function loadHistory() {
+            try {
+                const r = await fetch('/history');
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                allVideos = await r.json();
+                document.getElementById('loading').style.display = 'none';
+                renderVideos();
+            } catch (err) {
+                document.getElementById('loading').textContent = `Failed to load history: ${err.message}`;
+            }
+        }
+
+        async function deleteVideo(videoId) {
+            if (!confirm('Delete this video? This cannot be undone.')) return;
+            try {
+                const r = await fetch(`/history/${videoId}`, { method: 'DELETE' });
+                if (!r.ok) throw new Error(r.statusText);
+                allVideos = allVideos.filter(v => v.video_id !== videoId);
+                renderVideos();
+            } catch (err) { alert(`Error deleting video: ${err.message}`); }
+        }
+
+        document.getElementById('searchInput').addEventListener('input', renderVideos);
+
+        // ---------- Modal ----------
+        function openModal(v) {
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('modalVideo');
+            video.querySelector('source').src = `/videos/${v.video_id}`;
+            video.load();
+            document.getElementById('modalPrompt').textContent = v.prompt;
+            document.getElementById('modalMeta').innerHTML =
+                `📐 ${escapeHtml(v.resolution)} · ⏱️ ${v.seconds}s · 📅 ${formatDate(v.created_at)}` +
+                (v.file_size_bytes ? ` · 💾 ${formatSize(v.file_size_bytes)}` : '') +
+                (v.had_input_image ? ' · 🖼️ image-to-video' : '');
+            modal.classList.add('active');
+        }
+        function closeModal() {
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('modalVideo');
+            modal.classList.remove('active');
+            video.pause();
+        }
+        document.getElementById('modalClose').addEventListener('click', closeModal);
+        document.getElementById('videoModal').addEventListener('click', (e) => { if (e.target.id === 'videoModal') closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+        // ---------- Create ----------
         const form = document.getElementById('videoForm');
         const generateBtn = document.getElementById('generateBtn');
-        const status = document.getElementById('status');
+        const statusEl = document.getElementById('status');
         const statusText = document.getElementById('statusText');
         const progressContainer = document.getElementById('progressContainer');
         const progressBar = document.getElementById('progressBar');
         const videoResult = document.getElementById('videoResult');
         const resultVideo = document.getElementById('resultVideo');
         const revisedPrompt = document.getElementById('revisedPrompt');
-        
-        let currentVideoId = null;
         let pollInterval = null;
-        
-        // Fetch and display version
-        async function fetchVersion() {
-            try {
-                const response = await fetch('/version');
-                const data = await response.json();
-                document.getElementById('versionInfo').textContent = `v${data.version}`;
-            } catch (error) {
-                console.error('Failed to fetch version:', error);
-                document.getElementById('versionInfo').textContent = 'v1.0.0';
-            }
-        }
-        
-        // Fetch version on page load
-        fetchVersion();
-        
+
         function showStatus(message, type = 'info') {
-            status.className = `status ${type}`;
-            status.style.display = 'block';
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
             statusText.textContent = message;
         }
-        
-        function hideStatus() {
-            status.style.display = 'none';
-            progressContainer.style.display = 'none';
-        }
-        
         function updateProgress(percent) {
             progressContainer.style.display = 'block';
             progressBar.style.width = `${percent}%`;
         }
-        
-        function showVideo(videoUrl, prompt) {
-            resultVideo.src = videoUrl;
-            revisedPrompt.textContent = prompt ? `Revised prompt: ${prompt}` : '';
-            videoResult.style.display = 'block';
+        function resetButton() {
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate Video';
         }
-        
+
         function pollVideoStatus(videoId) {
             pollInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`/status/${videoId}`);
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        updateProgress(data.progress);
-                        
-                        if (data.status === 'completed') {
-                            clearInterval(pollInterval);
-                            showStatus('Video generated successfully!', 'success');
-                            generateBtn.disabled = false;
-                            generateBtn.textContent = 'Generate Video';
-                            
-                            if (data.video_url) {
-                                showVideo(data.video_url, data.revised_prompt);
-                            }
-                        } else if (data.status === 'failed') {
-                            clearInterval(pollInterval);
-                            showStatus('Video generation failed. Please try again.', 'error');
-                            generateBtn.disabled = false;
-                            generateBtn.textContent = 'Generate Video';
-                        } else {
-                            showStatus(`Generating video... (${data.status})`, 'info');
-                        }
-                    } else {
+                    const r = await fetch(`/status/${videoId}`);
+                    const d = await r.json();
+                    if (!r.ok) { clearInterval(pollInterval); showStatus('Error checking video status.', 'error'); resetButton(); return; }
+
+                    updateProgress(d.progress);
+                    if (d.status === 'completed') {
                         clearInterval(pollInterval);
-                        showStatus('Error checking video status.', 'error');
-                        generateBtn.disabled = false;
-                        generateBtn.textContent = 'Generate Video';
+                        showStatus('Video generated successfully!', 'success');
+                        resetButton();
+                        if (d.video_url) {
+                            resultVideo.src = d.video_url;
+                            revisedPrompt.textContent = d.revised_prompt ? `Revised prompt: ${d.revised_prompt}` : '';
+                            videoResult.style.display = 'block';
+                        }
+                        loadHistory();
+                    } else if (d.status === 'failed' || d.status === 'cancelled') {
+                        clearInterval(pollInterval);
+                        showStatus(`Video generation ${d.status}. Please try again.`, 'error');
+                        resetButton();
+                        loadHistory();
+                    } else {
+                        showStatus(`Generating video… (${d.status})`, 'info');
                     }
-                } catch (error) {
+                } catch {
                     clearInterval(pollInterval);
                     showStatus('Network error while checking status.', 'error');
-                    generateBtn.disabled = false;
-                    generateBtn.textContent = 'Generate Video';
+                    resetButton();
                 }
-            }, 2000); // Poll every 2 seconds
+            }, 2000);
         }
-        
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            // Use FormData to handle file upload
             const formData = new FormData(form);
-            
             generateBtn.disabled = true;
-            generateBtn.textContent = 'Generating...';
+            generateBtn.textContent = 'Generating…';
             videoResult.style.display = 'none';
-            showStatus('Starting video generation...', 'info');
+            showStatus('Starting video generation…', 'info');
             updateProgress(0);
-            
             try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    body: formData  // Send FormData directly (no Content-Type header needed)
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    currentVideoId = result.video_id;
-                    showStatus('Video generation started. Please wait...', 'info');
-                    pollVideoStatus(currentVideoId);
+                const r = await fetch('/generate', { method: 'POST', body: formData });
+                const result = await r.json();
+                if (r.ok) {
+                    showStatus('Video generation started. Please wait…', 'info');
+                    loadHistory();
+                    pollVideoStatus(result.video_id);
                 } else {
                     showStatus(`Error: ${result.detail || 'Unknown error'}`, 'error');
-                    generateBtn.disabled = false;
-                    generateBtn.textContent = 'Generate Video';
+                    resetButton();
                 }
-            } catch (error) {
+            } catch {
                 showStatus('Network error. Please check your connection.', 'error');
-                generateBtn.disabled = false;
-                generateBtn.textContent = 'Generate Video';
+                resetButton();
             }
         });
-        
-        // Clean up polling on page unload
-        window.addEventListener('beforeunload', () => {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
-        });
+
+        window.addEventListener('beforeunload', () => { if (pollInterval) clearInterval(pollInterval); });
+
+        // ---------- Init ----------
+        fetchVersion();
+        loadHistory();
+        setInterval(loadHistory, 30000);
     </script>
 </body>
 </html>

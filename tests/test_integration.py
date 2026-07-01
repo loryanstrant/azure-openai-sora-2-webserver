@@ -11,24 +11,23 @@ from app.main import app
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for integration tests."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
-        # Create a mock service instance
-        mock_service = MagicMock()
+    # Create a mock service instance
+    mock_service = MagicMock()
 
-        # Make the async methods return coroutines
-        async def mock_generate_video(request):
-            return "test-video-id-123"
+    # Make the async methods return coroutines
+    async def mock_generate_video(request):
+        return "test-video-id-123"
 
-        mock_service.generate_video = mock_generate_video
-        mock_service.get_video_status = MagicMock()
-        mock_service.cleanup_old_jobs = MagicMock()
+    mock_service.generate_video = mock_generate_video
+    mock_service.get_video_status = MagicMock()
+    mock_service.cleanup_old_jobs = MagicMock()
 
-        # Patch the global service at module level
-        with patch("app.main.azure_service", mock_service):
-            client = TestClient(app)
-            # Store the mock service for use in tests
-            client.mock_service = mock_service
-            yield client
+    # Patch the global service at module level
+    with patch("app.main.azure_service", mock_service):
+        client = TestClient(app)
+        # Store the mock service for use in tests
+        client.mock_service = mock_service
+        yield client
 
 
 def test_root_endpoint_serves_web_interface(client):
@@ -343,9 +342,8 @@ def test_azure_service_requires_environment_variables():
             },
             clear=True,
         ):
-            with patch("app.services.azure_openai.AzureOpenAI"):
-                service = AzureOpenAIService()
-                assert service is not None
+            service = AzureOpenAIService()
+            assert service is not None
 
 
 def test_azure_service_validates_endpoint_protocol():
@@ -384,9 +382,8 @@ def test_azure_service_validates_endpoint_protocol():
             },
             clear=True,
         ):
-            with patch("app.services.azure_openai.AzureOpenAI"):
-                service = AzureOpenAIService()
-                assert service is not None
+            service = AzureOpenAIService()
+            assert service is not None
 
         # Test with valid http:// endpoint - should not raise
         with patch.dict(
@@ -398,6 +395,5 @@ def test_azure_service_validates_endpoint_protocol():
             },
             clear=True,
         ):
-            with patch("app.services.azure_openai.AzureOpenAI"):
-                service = AzureOpenAIService()
-                assert service is not None
+            service = AzureOpenAIService()
+            assert service is not None

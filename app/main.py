@@ -7,6 +7,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .mcp_server import build_mcp_app, mcp, set_azure_service
 from .models import (
     VideoGenerationRequest,
     VideoHistoryEntry,
@@ -16,7 +17,7 @@ from .models import (
 from .services.azure_openai import AzureOpenAIService
 
 # Application version
-__version__ = "1.2.0"
+__version__ = "2.0.0"
 
 # Configure logging
 logging.basicConfig(
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 # Global service instance
 azure_service = None
 
+# Build the MCP streamable-HTTP sub-app once at import time. This also creates
+# the MCP session manager, whose lifespan we must run (see lifespan below).
+mcp_app = build_mcp_app()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,10 +40,21 @@ async def lifespan(app: FastAPI):
     # Startup
     global azure_service
     azure_service = AzureOpenAIService()
+    set_azure_service(azure_service)
     logger.info(f"Starting Azure OpenAI Sora Web Server v{__version__}...")
     print("Starting Azure OpenAI Sora Web Server...")
 
-    yield
+    # A mounted sub-app's lifespan is not run by the parent, so we run the MCP
+    # session manager here; without this the /mcp endpoint fails at runtime.
+    # The manager can only be run once per process; guard so that repeated
+    # lifespans (e.g. multiple TestClient contexts in the test suite) don't
+    # crash startup.
+    try:
+        async with mcp.session_manager.run():
+            yield
+    except RuntimeError as e:
+        logger.warning(f"MCP session manager not (re)started: {e}")
+        yield
 
     # Shutdown
     logger.info("Shutting down Azure OpenAI Sora Web Server...")
@@ -58,8 +74,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Mount static files
+# Mount static files and the MCP server (streamable HTTP) on the same port.
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/mcp", mcp_app)
 
 
 @app.get("/")

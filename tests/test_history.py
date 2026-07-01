@@ -13,22 +13,21 @@ from app.models import VideoHistoryEntry
 @pytest.fixture
 def client(mock_env_vars):
     """Create a test client for the FastAPI app."""
-    with patch("app.services.azure_openai.AzureOpenAI"):
-        # Create a mock service with history
-        mock_service = MagicMock()
-        mock_history = MagicMock()
+    # Create a mock service with history
+    mock_service = MagicMock()
+    mock_history = MagicMock()
 
-        # Mock history methods
-        mock_history.get_all_entries = MagicMock(return_value=[])
-        mock_history.get_video_path = MagicMock(return_value=None)
+    # Mock history methods
+    mock_history.get_all_entries = MagicMock(return_value=[])
+    mock_history.get_video_path = MagicMock(return_value=None)
 
-        mock_service.history = mock_history
-        mock_service.cleanup_old_jobs = MagicMock()
+    mock_service.history = mock_history
+    mock_service.cleanup_old_jobs = MagicMock()
 
-        with patch("app.main.azure_service", mock_service):
-            client = TestClient(app)
-            client.mock_service = mock_service
-            yield client
+    with patch("app.main.azure_service", mock_service):
+        client = TestClient(app)
+        client.mock_service = mock_service
+        yield client
 
 
 def test_history_endpoint(client):
