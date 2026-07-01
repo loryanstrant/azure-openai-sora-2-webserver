@@ -1,4 +1,4 @@
-"""Tests for the Azure OpenAI Sora 2 service (raw REST via httpx)."""
+"""Tests for the Azure OpenAI Sora 2 service (OpenAI-compatible /videos API)."""
 
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,10 +7,7 @@ import httpx
 import pytest
 
 from app.models import VideoGenerationRequest, VideoResolution, VideoStatus
-from app.services.azure_openai import (
-    AzureOpenAIService,
-    _normalize_status,
-)
+from app.services.azure_openai import AzureOpenAIService, _normalize_status
 
 
 @pytest.fixture
@@ -30,7 +27,7 @@ def _mock_response(json_data=None, content=b"", status_code=200):
 
 
 def _patch_async_client(post=None, get=None):
-    """Patch httpx.AsyncClient with mocked post/get and return the context manager."""
+    """Patch httpx.AsyncClient with mocked post/get and return the CM + client."""
     client = MagicMock()
     client.post = AsyncMock(return_value=post)
     client.get = AsyncMock(return_value=get)
@@ -58,12 +55,20 @@ def test_service_initialization_logging(mock_env_vars, caplog):
 
 
 def test_endpoint_is_normalized(azure_service: AzureOpenAIService):
-    """Trailing slash and any /openai path should be stripped from the base."""
+    """Trailing slash / /videos / /openai path should be stripped from the base."""
     assert azure_service.endpoint == "https://test.openai.azure.com"
-    assert azure_service._jobs_url() == (
-        "https://test.openai.azure.com/openai/v1/video/generations/jobs"
-        "?api-version=preview"
-    )
+    assert azure_service._videos_url() == "https://test.openai.azure.com/videos"
+
+
+def test_endpoint_strips_videos_suffix(mock_env_vars):
+    """A pasted .../videos URL should be reduced to the resource base."""
+    with patch.dict(
+        "os.environ",
+        {"AZURE_OPENAI_ENDPOINT": "https://foo.services.ai.azure.com/videos"},
+    ):
+        svc = AzureOpenAIService()
+    assert svc.endpoint == "https://foo.services.ai.azure.com"
+    assert svc._videos_url() == "https://foo.services.ai.azure.com/videos"
 
 
 # --------------------------------------------------------------------- create
@@ -86,148 +91,123 @@ async def test_generate_video_success(azure_service: AzureOpenAIService):
 
 
 @pytest.mark.asyncio
-async def test_create_job_builds_correct_body(azure_service: AzureOpenAIService):
-    """Text-to-video POST must target the jobs URL with the right body/headers."""
+async def test_create_video_builds_correct_body(azure_service: AzureOpenAIService):
+    """Text-to-video POST must target /videos with size/seconds + Bearer auth."""
     request = VideoGenerationRequest(
         prompt="A beautiful sunset",
-        resolution=VideoResolution.LANDSCAPE,
+        resolution=VideoResolution.PORTRAIT,
         seconds=8,
     )
-    post_resp = _mock_response({"id": "job_123", "status": "queued"})
+    post_resp = _mock_response({"id": "video_123", "status": "queued"})
     patcher, client = _patch_async_client(post=post_resp)
 
     with patcher:
-        job_id = await azure_service._create_job(request)
+        remote_id = await azure_service._create_video(request)
 
-    assert job_id == "job_123"
+    assert remote_id == "video_123"
     args, kwargs = client.post.call_args
-    assert args[0] == (
-        "https://test.openai.azure.com/openai/v1/video/generations/jobs"
-        "?api-version=preview"
-    )
+    assert args[0] == "https://test.openai.azure.com/videos"
     assert kwargs["json"] == {
         "prompt": "A beautiful sunset",
-        "width": 1280,
-        "height": 720,
-        "n_seconds": 8,
         "model": "sora-2",
+        "size": "720x1280",
+        "seconds": "8",
     }
-    assert kwargs["headers"]["api-key"] == "test-api-key"
+    assert kwargs["headers"]["Authorization"] == "Bearer test-api-key"
 
 
 @pytest.mark.asyncio
-async def test_create_job_resolution_split(azure_service: AzureOpenAIService):
-    """Portrait resolution should map to width=720, height=1280."""
-    request = VideoGenerationRequest(
-        prompt="tall video",
-        resolution=VideoResolution.PORTRAIT,
-        seconds=4,
-    )
-    post_resp = _mock_response({"id": "job_p", "status": "queued"})
-    patcher, client = _patch_async_client(post=post_resp)
-
-    with patcher:
-        await azure_service._create_job(request)
-
-    body = client.post.call_args.kwargs["json"]
-    assert body["width"] == 720
-    assert body["height"] == 1280
-
-
-@pytest.mark.asyncio
-async def test_create_job_multipart_when_image(azure_service: AzureOpenAIService):
-    """Image-to-video must send multipart files + inpaint_items, no Content-Type."""
+async def test_create_video_multipart_when_image(azure_service: AzureOpenAIService):
+    """Image-to-video must send multipart input_reference and no Content-Type."""
     request = VideoGenerationRequest(
         prompt="animate this",
         resolution=VideoResolution.LANDSCAPE,
         seconds=4,
         input_image_data=b"fake_image_bytes",
     )
-    post_resp = _mock_response({"id": "job_img", "status": "queued"})
+    post_resp = _mock_response({"id": "video_img", "status": "queued"})
     patcher, client = _patch_async_client(post=post_resp)
 
     with patcher:
-        job_id = await azure_service._create_job(request)
+        remote_id = await azure_service._create_video(request)
 
-    assert job_id == "job_img"
+    assert remote_id == "video_img"
     kwargs = client.post.call_args.kwargs
-    assert "files" in kwargs and kwargs["files"]["files"][1] == b"fake_image_bytes"
-    assert kwargs["data"]["width"] == "1280"
-    assert kwargs["data"]["n_seconds"] == "4"
-    assert isinstance(kwargs["data"]["inpaint_items"], str)
+    assert kwargs["files"]["input_reference"][1] == b"fake_image_bytes"
+    assert kwargs["data"]["size"] == "1280x720"
+    assert kwargs["data"]["seconds"] == "4"
     assert "Content-Type" not in kwargs["headers"]
+    assert kwargs["headers"]["Authorization"] == "Bearer test-api-key"
 
 
 @pytest.mark.asyncio
-async def test_create_job_http_error(azure_service: AzureOpenAIService):
+async def test_create_video_http_error(azure_service: AzureOpenAIService):
     """A non-2xx create response should raise with the status + body."""
     request = VideoGenerationRequest(
         prompt="boom", resolution=VideoResolution.LANDSCAPE, seconds=4
     )
     err_resp = MagicMock()
-    err_resp.status_code = 400
-    err_resp.text = "bad request"
+    err_resp.status_code = 404
+    err_resp.text = "not found"
     err_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "400", request=MagicMock(), response=err_resp
+        "404", request=MagicMock(), response=err_resp
     )
     patcher, _ = _patch_async_client(post=err_resp)
 
-    with patcher, pytest.raises(Exception, match="400"):
-        await azure_service._create_job(request)
+    with patcher, pytest.raises(Exception, match="404"):
+        await azure_service._create_video(request)
 
 
 # --------------------------------------------------------------------- status
 
 
 @pytest.mark.parametrize(
-    "azure_status,expected",
+    "provider_status,expected",
     [
         ("queued", "queued"),
         ("preprocessing", "in_progress"),
         ("running", "in_progress"),
-        ("processing", "in_progress"),
+        ("in_progress", "in_progress"),
         ("succeeded", "completed"),
+        ("completed", "completed"),
         ("failed", "failed"),
         ("cancelled", "cancelled"),
         ("something_new", "in_progress"),
     ],
 )
-def test_status_normalization(azure_status, expected):
-    assert _normalize_status(azure_status) == expected
+def test_status_normalization(provider_status, expected):
+    assert _normalize_status(provider_status) == expected
 
 
 @pytest.mark.asyncio
-async def test_poll_job_success_downloads(azure_service: AzureOpenAIService):
-    """On succeeded, poll must download via the generation_id (not the job_id)."""
+async def test_poll_video_success_downloads(azure_service: AzureOpenAIService):
+    """On completed, poll must download /videos/{id}/content for the same id."""
     video_id = "vid-1"
     azure_service.video_jobs[video_id] = VideoStatus(
         video_id=video_id, status="queued", progress=10
     )
 
-    poll_resp = _mock_response(
-        {"status": "succeeded", "generations": [{"id": "gen_abc"}]}
-    )
+    poll_resp = _mock_response({"status": "completed", "progress": 100})
     download_resp = _mock_response(content=b"MP4DATA")
-    patcher, client = _patch_async_client(get=None)
-    # First GET = poll, second GET = download
+    patcher, client = _patch_async_client()
+    # First GET = poll, second GET = download.
     client.get = AsyncMock(side_effect=[poll_resp, download_resp])
 
     with patcher, patch("asyncio.sleep", new=AsyncMock()):
-        await azure_service._poll_job(video_id, "job_xyz")
+        await azure_service._poll_video(video_id, "video_abc")
 
     status = azure_service.video_jobs[video_id]
     assert status.status == "completed"
     assert status.progress == 100
-    assert status.azure_generation_id == "gen_abc"
-    # The download URL must use the generation id, not the job id.
+    poll_url = client.get.call_args_list[0].args[0]
     download_url = client.get.call_args_list[-1].args[0]
-    assert "video/generations/gen_abc/content/video" in download_url
-    assert "job_xyz" not in download_url
+    assert poll_url == "https://test.openai.azure.com/videos/video_abc"
+    assert download_url == "https://test.openai.azure.com/videos/video_abc/content"
 
 
 @pytest.mark.asyncio
-async def test_poll_job_failed(azure_service: AzureOpenAIService):
-    """A failed job should mark the internal status failed and stop polling."""
+async def test_poll_video_failed(azure_service: AzureOpenAIService):
+    """A failed video should mark the internal status failed and stop polling."""
     video_id = "vid-2"
     azure_service.video_jobs[video_id] = VideoStatus(
         video_id=video_id, status="queued", progress=10
@@ -237,7 +217,7 @@ async def test_poll_job_failed(azure_service: AzureOpenAIService):
     client.get = AsyncMock(return_value=poll_resp)
 
     with patcher, patch("asyncio.sleep", new=AsyncMock()):
-        await azure_service._poll_job(video_id, "job_f")
+        await azure_service._poll_video(video_id, "video_f")
 
     assert azure_service.video_jobs[video_id].status == "failed"
     assert azure_service.video_jobs[video_id].progress == 0
