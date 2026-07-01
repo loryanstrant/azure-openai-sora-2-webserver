@@ -1,11 +1,11 @@
 """Azure OpenAI service for video generation using Sora 2.
 
-Targets the OpenAI-compatible **/videos** surface that Azure AI Foundry
-(`*.services.ai.azure.com`) exposes for Sora 2, per Microsoft's sample:
+Targets the OpenAI-compatible **/openai/v1/videos** surface that Azure AI
+Foundry (`*.services.ai.azure.com`) exposes for Sora 2:
 
-    POST {endpoint}/videos            {"prompt","model","size","seconds"}
-    GET  {endpoint}/videos/{id}       -> status/progress
-    GET  {endpoint}/videos/{id}/content  -> the mp4 bytes
+    POST {endpoint}/openai/v1/videos            {"prompt","model","size","seconds"}
+    GET  {endpoint}/openai/v1/videos/{id}       -> status/progress
+    GET  {endpoint}/openai/v1/videos/{id}/content  -> the mp4 bytes
 
 Authentication is `Authorization: Bearer <AZURE_OPENAI_API_KEY>`.
 """
@@ -96,13 +96,13 @@ class AzureOpenAIService:
     # ------------------------------------------------------------------ URLs
 
     def _videos_url(self) -> str:
-        return f"{self.endpoint}/videos"
+        return f"{self.endpoint}/openai/v1/videos"
 
     def _video_url(self, video: str) -> str:
-        return f"{self.endpoint}/videos/{video}"
+        return f"{self.endpoint}/openai/v1/videos/{video}"
 
     def _content_url(self, video: str) -> str:
-        return f"{self.endpoint}/videos/{video}/content"
+        return f"{self.endpoint}/openai/v1/videos/{video}/content"
 
     def _auth_headers(self, base: dict[str, str] | None = None) -> dict[str, str]:
         headers = dict(base or {})
