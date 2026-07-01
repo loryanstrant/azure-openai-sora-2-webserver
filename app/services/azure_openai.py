@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from ..models import VideoGenerationRequest, VideoStatus
+from ..models import VideoGenerationRequest, VideoResolution, VideoStatus
 from .history import HistoryService
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,36 @@ class AzureOpenAIService:
         storage_dir = os.getenv("VIDEO_STORAGE_DIR", "/app/data")
         self.history = HistoryService(storage_dir=storage_dir)
 
+        # Bounded worker pool so concurrent in-flight jobs never exceed the
+        # Azure Sora quota (which 429s beyond ~4). Any number of jobs can be
+        # submitted; they queue server-side and run max_concurrent at a time.
+        self.max_concurrent = max(1, int(os.getenv("MAX_CONCURRENT_JOBS", "4")))
+        self._queue: asyncio.Queue[tuple[VideoGenerationRequest, str]] = asyncio.Queue()
+        self._workers: list[asyncio.Task] = []
+        self._workers_started = False
+
+    # ------------------------------------------------------------- worker pool
+
+    def _ensure_workers(self) -> None:
+        """Lazily start the worker tasks (needs a running loop)."""
+        if self._workers_started:
+            return
+        self._workers_started = True
+        for i in range(self.max_concurrent):
+            self._workers.append(asyncio.create_task(self._worker(i)))
+        logger.info(f"Started {self.max_concurrent} video worker(s)")
+
+    async def _worker(self, index: int) -> None:
+        """Pull jobs off the queue and run them one at a time."""
+        while True:
+            request, video_id = await self._queue.get()
+            try:
+                await self._run_job(request, video_id)
+            except Exception as e:  # pragma: no cover - defensive
+                logger.error(f"Worker {index} job failed - {video_id}: {e}")
+            finally:
+                self._queue.task_done()
+
     # ------------------------------------------------------------------ URLs
 
     def _videos_url(self) -> str:
@@ -114,12 +144,19 @@ class AzureOpenAIService:
     async def generate_video(
         self, request: VideoGenerationRequest, filename: str | None = None
     ) -> str:
-        """Register a new generation job and kick off the background worker."""
+        """Register a new generation job and enqueue it for a worker."""
         video_id = str(uuid.uuid4())
 
         self.video_jobs[video_id] = VideoStatus(
             video_id=video_id, status="pending", progress=0
         )
+
+        input_path = None
+        if request.input_image_data:
+            # Persist the input image so a retry can reuse it faithfully.
+            input_path = self.history.save_input_image(
+                video_id, request.input_image_data
+            )
 
         self.history.add_entry(
             video_id=video_id,
@@ -128,11 +165,44 @@ class AzureOpenAIService:
             seconds=request.seconds,
             had_input_image=request.input_image_data is not None,
             filename=filename,
+            input_path=input_path,
         )
 
-        asyncio.create_task(self._run_job(request, video_id))
+        self._ensure_workers()
+        await self._queue.put((request, video_id))
 
         return video_id
+
+    async def retry_video(self, video_id: str) -> bool:
+        """Re-run an existing (usually failed) job in place. False if unknown."""
+        entry = self.history.get_entry(video_id)
+        if entry is None:
+            return False
+
+        try:
+            resolution = VideoResolution(entry.resolution)
+        except ValueError:
+            resolution = VideoResolution.LANDSCAPE
+
+        image_data = (
+            self.history.get_input_image(video_id) if entry.had_input_image else None
+        )
+        request = VideoGenerationRequest(
+            prompt=entry.prompt,
+            resolution=resolution,
+            seconds=entry.seconds,
+            input_image_data=image_data,
+        )
+
+        self.video_jobs[video_id] = VideoStatus(
+            video_id=video_id, status="pending", progress=0
+        )
+        self.history.reset_entry(video_id)
+
+        logger.info(f"Retrying video generation - Video ID: {video_id}")
+        self._ensure_workers()
+        await self._queue.put((request, video_id))
+        return True
 
     async def _run_job(self, request: VideoGenerationRequest, video_id: str) -> None:
         """Create the remote video and poll it to completion in the background."""
@@ -213,32 +283,55 @@ class AzureOpenAIService:
         data: dict[str, str] | None = None,
         files: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """POST a create-video request and return the parsed JSON body."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    self._videos_url(),
-                    headers=headers,
-                    json=json_body,
-                    data=data,
-                    files=files,
+        """POST a create-video request, retrying transient rate limits."""
+        max_attempts = 5  # ~1 initial + 4 retries
+        for attempt in range(max_attempts):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        self._videos_url(),
+                        headers=headers,
+                        json=json_body,
+                        data=data,
+                        files=files,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                logger.info(
+                    "Sora API response received - "
+                    f"Video ID: {result.get('id')}, Status: {result.get('status')}"
                 )
-                response.raise_for_status()
-                result = response.json()
-            logger.info(
-                "Sora API response received - "
-                f"Video ID: {result.get('id')}, Status: {result.get('status')}"
-            )
-            return result
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "Sora API HTTP error - "
-                f"Status: {e.response.status_code}, Response: {e.response.text}"
-            )
-            raise Exception(
-                f"API request failed with status {e.response.status_code}: "
-                f"{e.response.text}"
-            ) from e
+                return result
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                # 429 (rate/quota) and 503 are transient — back off and retry.
+                if status in (429, 503) and attempt < max_attempts - 1:
+                    delay = self._retry_delay(e.response, attempt)
+                    logger.warning(
+                        f"Sora API {status} (attempt {attempt + 1}/{max_attempts}) "
+                        f"- backing off {delay:.1f}s"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(
+                    "Sora API HTTP error - "
+                    f"Status: {status}, Response: {e.response.text}"
+                )
+                raise Exception(
+                    f"API request failed with status {status}: {e.response.text}"
+                ) from e
+        raise Exception("API request failed after retries")  # pragma: no cover
+
+    @staticmethod
+    def _retry_delay(response: httpx.Response, attempt: int) -> float:
+        """Backoff delay: honor Retry-After, else exponential (2,4,8,16s)."""
+        retry_after = response.headers.get("retry-after")
+        if retry_after:
+            try:
+                return float(retry_after)
+            except ValueError:
+                pass
+        return float(2 ** (attempt + 1))
 
     # -------------------------------------------------------------------- poll
 

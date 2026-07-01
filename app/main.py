@@ -17,7 +17,7 @@ from .models import (
 from .services.azure_openai import AzureOpenAIService
 
 # Application version
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 # Configure logging
 logging.basicConfig(
@@ -162,7 +162,13 @@ async def get_video_status(video_id: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "azure-openai-sora", "version": __version__}
+    max_concurrent = azure_service.max_concurrent if azure_service else None
+    return {
+        "status": "healthy",
+        "service": "azure-openai-sora",
+        "version": __version__,
+        "max_concurrent_jobs": max_concurrent,
+    }
 
 
 @app.get("/version")
@@ -188,6 +194,15 @@ async def get_video(video_id: str):
         media_type="video/mp4",
         filename=azure_service.history.get_download_name(video_id),
     )
+
+
+@app.post("/retry/{video_id}")
+async def retry_video(video_id: str):
+    """Re-run a previous (usually failed) generation job in place."""
+    ok = await azure_service.retry_video(video_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Video job not found")
+    return {"status": "pending", "video_id": video_id}
 
 
 @app.delete("/history/{video_id}")

@@ -14,13 +14,17 @@ Single page — video history on the left, creation form + batch queue on the ri
 
 - **Single-page Web Interface**: Video history on the left (file name, download, date,
   prompt), the creation form on the right — no separate history page.
-  - 🔍 **Search** history by prompt text
+  - 🔍 **Search** by prompt + 📅 **date-range filter**
   - 🌗 **Dark mode**: toggle persisted in `localStorage`, follows `prefers-color-scheme`,
     with colour-blind-safe status glyphs (●/◐/○)
   - 🎬 **Modal Playback**: click any completed video to play it full-screen
-  - ⬇️ **Download** / 🗑️ **Delete** per entry
-- **MCP Server**: the container is also an MCP server (streamable HTTP at `/mcp`), so another
-  system can drive **batch** video jobs remotely
+  - ⬇️ **Download** / 🗑️ **Delete** per entry, ↻ **Retry** failed jobs, and **multi-select**
+    to retry or delete many at once
+- **Batch, throttled**: submit any number of videos (add-to-queue in the UI, or many MCP
+  calls); the server runs `MAX_CONCURRENT_JOBS` (default **4**) at a time and queues the rest,
+  with auto-retry on Azure `429` — so a big batch just works and you can walk away
+- **MCP Server**: the container is also an MCP server (streamable HTTP at `/mcp`) for driving
+  **batch** jobs (incl. image-to-video), retrying, deleting, and downloading from another system
 - **Persistent Storage**: Videos are downloaded and saved locally with volume mount support
 - **Azure OpenAI Integration**: Talks to the Azure Foundry **Sora 2** REST API directly
   (`/openai/v1/video/generations`, api-version `preview`)
@@ -40,6 +44,7 @@ Single page — video history on the left, creation form + batch queue on the ri
 | `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI **resource** base URL (must start with `http://`/`https://`). Just the resource root — e.g. `https://your-instance.openai.azure.com` or `https://your-instance.cognitiveservices.azure.com`. The app builds the `/openai/v1/video/generations/...` paths itself. | Yes | - |
 | `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key (sent as the `api-key` header) | Yes | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
+| `MAX_CONCURRENT_JOBS` | How many videos generate at once. Extra submissions queue server-side and run as slots free (with auto-retry on `429`). Raise it only if your Azure quota allows more concurrent Sora jobs. | No | `4` |
 | `MCP_AUTH_TOKEN` | If set, the `/mcp` endpoint requires `Authorization: Bearer <token>`. If unset, `/mcp` is open (intended for LAN / WireGuard-only use). | No | - |
 | `VIDEO_STORAGE_DIR` | Directory path for storing generated videos and history | No | `/app/data` |
 | `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
@@ -137,10 +142,15 @@ Tools:
 
 | Tool | Purpose |
 |------|---------|
-| `generate_video(prompt, resolution="1280x720", seconds=4)` | Start a job; returns `video_id` |
+| `generate_video(prompt, resolution="1280x720", seconds=4, filename="", image_base64="", image_url="")` | Start a text- or image-to-video job; returns `video_id`. Pass `image_base64` or `image_url` for image-to-video. |
 | `get_video_status(video_id)` | Status + progress of a job |
 | `list_history()` | All past generations (newest first) |
-| `get_video(video_id)` | Download URL (`/videos/{video_id}`) for a finished video |
+| `retry_video(video_id)` | Re-run a previous (usually failed) job in place |
+| `delete_video(video_id)` | Delete a video and its history entry |
+| `download_video(video_id, include_bytes=False)` | Metadata + `/videos/{id}` URL always; add `content_base64`/`mime`/`size_bytes` when `include_bytes=true` — so the caller fetches the file only when it wants it |
+
+Submit as many `generate_video` calls as you like — they're throttled server-side to
+`MAX_CONCURRENT_JOBS` (default 4) with auto-retry on `429`, so batches don't fail.
 
 If `MCP_AUTH_TOKEN` is set, every `/mcp` request must send `Authorization: Bearer <token>`.
 Example `.mcp.json` entry:

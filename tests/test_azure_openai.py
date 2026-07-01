@@ -252,3 +252,70 @@ def test_cleanup_old_jobs(azure_service: AzureOpenAIService):
     assert len(azure_service.video_jobs) == 150
     azure_service.cleanup_old_jobs()
     assert len(azure_service.video_jobs) == 50
+
+
+# ------------------------------------------------------------- queue / retry
+
+
+@pytest.mark.asyncio
+async def test_generate_video_enqueues(azure_service: AzureOpenAIService):
+    """generate_video should enqueue a job (bounded worker pool), not run it."""
+    request = VideoGenerationRequest(
+        prompt="q", resolution=VideoResolution.LANDSCAPE, seconds=4
+    )
+    with patch.object(azure_service, "_ensure_workers"):
+        video_id = await azure_service.generate_video(request)
+    assert azure_service.video_jobs[video_id].status == "pending"
+    assert azure_service._queue.qsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_video_resets_and_reenqueues(azure_service: AzureOpenAIService):
+    azure_service.history.add_entry("vid-r", "p", "1280x720", 4, False)
+    azure_service.history.update_entry(
+        "vid-r", status="completed", file_path="/x.mp4", file_size_bytes=9
+    )
+    with patch.object(azure_service, "_ensure_workers"):
+        ok = await azure_service.retry_video("vid-r")
+    assert ok is True
+    assert azure_service.video_jobs["vid-r"].status == "pending"
+    entry = azure_service.history.get_entry("vid-r")
+    assert entry.status == "pending" and entry.file_path is None
+    assert azure_service._queue.qsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_video_unknown(azure_service: AzureOpenAIService):
+    with patch.object(azure_service, "_ensure_workers"):
+        assert await azure_service.retry_video("nope") is False
+
+
+@pytest.mark.asyncio
+async def test_post_video_retries_on_429(azure_service: AzureOpenAIService):
+    """A 429 should back off and retry, then succeed."""
+    request = VideoGenerationRequest(
+        prompt="x", resolution=VideoResolution.LANDSCAPE, seconds=4
+    )
+    resp429 = MagicMock()
+    resp429.status_code = 429
+    resp429.headers = {}
+    resp429.text = "rate limited"
+    resp429.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "429", request=MagicMock(), response=resp429
+    )
+    ok = _mock_response({"id": "video_ok", "status": "queued"})
+
+    client = MagicMock()
+    client.post = AsyncMock(side_effect=[resp429, ok])
+    async_cm = MagicMock()
+    async_cm.__aenter__ = AsyncMock(return_value=client)
+    async_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("httpx.AsyncClient", return_value=async_cm),
+        patch("asyncio.sleep", new=AsyncMock()),
+    ):
+        remote_id = await azure_service._create_video(request)
+
+    assert remote_id == "video_ok"
+    assert client.post.call_count == 2

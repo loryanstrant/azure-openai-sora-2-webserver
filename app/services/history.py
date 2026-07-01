@@ -36,12 +36,14 @@ class HistoryService:
         """
         self.storage_dir = Path(storage_dir)
         self.videos_dir = self.storage_dir / "videos"
+        self.inputs_dir = self.storage_dir / "inputs"
         self.history_file = self.storage_dir / "history.json"
 
         # Create directories if they don't exist
         try:
             self.storage_dir.mkdir(parents=True, exist_ok=True)
             self.videos_dir.mkdir(parents=True, exist_ok=True)
+            self.inputs_dir.mkdir(parents=True, exist_ok=True)
             logger.info(
                 f"History service initialized - Storage: {self.storage_dir}, Videos: {self.videos_dir}"
             )
@@ -80,6 +82,7 @@ class HistoryService:
         seconds: int,
         had_input_image: bool,
         filename: str | None = None,
+        input_path: str | None = None,
     ) -> None:
         """Add a new video generation entry to history.
 
@@ -90,6 +93,7 @@ class HistoryService:
             seconds: Video duration in seconds
             had_input_image: Whether an input image was provided
             filename: Optional user-chosen download filename
+            input_path: Path to the persisted input image (for retries)
         """
         entry = {
             "video_id": video_id,
@@ -104,6 +108,7 @@ class HistoryService:
             "file_size_bytes": None,
             "revised_prompt": None,
             "filename": sanitize_filename(filename),
+            "input_path": input_path,
         }
         self._history[video_id] = entry
         self._save_history()
@@ -148,6 +153,46 @@ class HistoryService:
 
         self._save_history()
         logger.info(f"Updated history entry for video {video_id}")
+
+    def reset_entry(self, video_id: str) -> None:
+        """Reset an entry to a fresh pending state (for in-place retry)."""
+        entry = self._history.get(video_id)
+        if entry is None:
+            return
+        entry["status"] = "pending"
+        entry["completed_at"] = None
+        entry["file_path"] = None
+        entry["file_size_bytes"] = None
+        self._save_history()
+        logger.info(f"Reset history entry for retry: {video_id}")
+
+    def save_input_image(self, video_id: str, content: bytes) -> str:
+        """Persist an input reference image so retries can reuse it."""
+        input_path = self.inputs_dir / f"{video_id}.img"
+        try:
+            with open(input_path, "wb") as f:
+                f.write(content)
+            return str(input_path)
+        except Exception as e:
+            logger.error(f"Failed to save input image {video_id}: {e}")
+            return ""
+
+    def get_input_image(self, video_id: str) -> bytes | None:
+        """Read a persisted input image, or None if not stored."""
+        entry = self._history.get(video_id)
+        path = None
+        if entry and entry.get("input_path"):
+            path = Path(entry["input_path"])
+        else:
+            candidate = self.inputs_dir / f"{video_id}.img"
+            if candidate.exists():
+                path = candidate
+        if path and path.exists():
+            try:
+                return path.read_bytes()
+            except Exception as e:
+                logger.error(f"Failed to read input image {video_id}: {e}")
+        return None
 
     def get_entry(self, video_id: str) -> VideoHistoryEntry | None:
         """Get a single history entry by video ID.
@@ -253,6 +298,14 @@ class HistoryService:
                     logger.info(f"Deleted video file: {video_path}")
                 except Exception as e:
                     logger.error(f"Failed to delete video file {video_path}: {e}")
+
+        # Delete the persisted input image if any
+        input_path = self.inputs_dir / f"{video_id}.img"
+        if input_path.exists():
+            try:
+                input_path.unlink()
+            except Exception as e:
+                logger.error(f"Failed to delete input image {input_path}: {e}")
 
         # Remove from history
         del self._history[video_id]

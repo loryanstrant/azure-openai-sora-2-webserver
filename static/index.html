@@ -264,7 +264,7 @@
         }
         .video-item {
             display: grid;
-            grid-template-columns: 22px 1fr auto;
+            grid-template-columns: 24px 22px 1fr auto;
             gap: 12px;
             align-items: center;
             background: var(--panel-alt);
@@ -313,16 +313,67 @@
         .video-date { font-size: 12px; color: var(--text-muted); }
         .video-progress { font-size: 12px; color: var(--info); font-weight: 600; }
 
-        .btn-delete {
+        .row-actions { display: flex; flex-direction: column; gap: 6px; }
+        .btn-delete, .btn-retry {
             background: transparent;
             border: 1px solid var(--border);
-            color: var(--err);
             border-radius: 6px;
             padding: 6px 9px;
             cursor: pointer;
             font-size: 13px;
         }
+        .btn-delete { color: var(--err); }
         .btn-delete:hover { border-color: var(--err); }
+        .btn-retry { color: var(--accent); }
+        .btn-retry:hover { border-color: var(--accent); }
+
+        .row-check { display: flex; align-items: center; }
+        .row-check input { width: 16px; height: 16px; cursor: pointer; }
+
+        /* filters + selection toolbar */
+        .history-filters {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .date-filter { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .date-filter input {
+            width: auto;
+            padding: 6px 8px;
+            font-size: 13px;
+            color-scheme: light dark;
+        }
+        .link-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 0;
+        }
+        .link-btn:hover { text-decoration: underline; }
+        .filter-count { margin-left: auto; }
+
+        .select-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            background: var(--info-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .select-toolbar .select-all { display: flex; align-items: center; gap: 6px; }
+        .select-actions { margin-left: auto; display: flex; gap: 8px; }
+        button.sm { padding: 6px 12px; font-size: 13px; border-radius: 6px; cursor: pointer; }
+        button.secondary.sm { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        button.danger.sm { background: transparent; color: var(--err); border: 1px solid var(--err); }
 
         .empty-state, .loading { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 
@@ -381,6 +432,20 @@
                 <div class="history-head">
                     <h2>📜 Video History</h2>
                     <div class="search"><input type="text" id="searchInput" placeholder="🔍 Search prompts…"></div>
+                </div>
+                <div class="history-filters">
+                    <label class="date-filter">From <input type="date" id="dateFrom"></label>
+                    <label class="date-filter">To <input type="date" id="dateTo"></label>
+                    <button type="button" class="link-btn" id="clearFilters">Clear filters</button>
+                    <span class="filter-count" id="filterCount"></span>
+                </div>
+                <div class="select-toolbar" id="selectToolbar" style="display:none;">
+                    <label class="select-all"><input type="checkbox" id="selectAll"> Select all</label>
+                    <span id="selectCount">0 selected</span>
+                    <div class="select-actions">
+                        <button type="button" class="secondary sm" id="retrySelected">↻ Retry</button>
+                        <button type="button" class="danger sm" id="deleteSelected">🗑️ Delete</button>
+                    </div>
                 </div>
                 <div id="loading" class="loading">Loading history…</div>
                 <div id="emptyState" class="empty-state" style="display:none;">No videos yet — create one on the right.</div>
@@ -635,6 +700,17 @@
         const progressMap = {};
         let latestNewId = null;
         let pollTimer = null;
+        let maxConcurrent = null;
+        const selectedIds = new Set();
+
+        // Learn the server-side throttle so we can explain the queue.
+        (async () => {
+            try {
+                const h = await (await fetch('/health')).json();
+                maxConcurrent = h.max_concurrent_jobs || null;
+                updateSummary();
+            } catch { /* ignore */ }
+        })();
 
         function track(ids) {
             ids.forEach(id => activeIds.add(id));
@@ -644,8 +720,11 @@
         }
 
         function updateSummary() {
-            if (activeIds.size > 0) {
-                summaryEl.innerHTML = `<span class="spinner"></span> ${activeIds.size} generating…`;
+            const running = allVideos.filter(v => v.status === 'in_progress').length;
+            const queued = allVideos.filter(v => v.status === 'queued' || v.status === 'pending').length;
+            const atATime = maxConcurrent ? ` · ${maxConcurrent} at a time` : '';
+            if (running + queued > 0) {
+                summaryEl.innerHTML = `<span class="spinner"></span> running ${running} · queued ${queued}${atATime}`;
             } else {
                 summaryEl.textContent = '';
             }
@@ -676,7 +755,25 @@
         }
 
         // ---------- History ----------
+        const searchInput = document.getElementById('searchInput');
+        const dateFrom = document.getElementById('dateFrom');
+        const dateTo = document.getElementById('dateTo');
+        const selectToolbar = document.getElementById('selectToolbar');
+        const selectAllEl = document.getElementById('selectAll');
+        const selectCountEl = document.getElementById('selectCount');
+        const filterCountEl = document.getElementById('filterCount');
+
         function isPlayable(v) { return v.status === 'completed' && v.file_path; }
+        function isRetryable(v) { return ['failed', 'cancelled', 'completed'].includes(v.status); }
+
+        function matchesFilters(v) {
+            const term = searchInput.value.toLowerCase();
+            if (term && !(v.prompt || '').toLowerCase().includes(term)) return false;
+            const created = new Date(v.created_at);
+            if (dateFrom.value && created < new Date(dateFrom.value + 'T00:00:00')) return false;
+            if (dateTo.value && created > new Date(dateTo.value + 'T23:59:59')) return false;
+            return true;
+        }
 
         function createVideoItem(v) {
             const item = document.createElement('div');
@@ -687,8 +784,11 @@
             const isNew = v.video_id === latestNewId;
             const pct = progressMap[v.video_id];
             const showPct = pct != null && v.status !== 'completed';
+            const checked = selectedIds.has(v.video_id) ? 'checked' : '';
+            const retryBtn = isRetryable(v) ? '<button class="btn-retry" title="Retry">↻</button>' : '';
 
             item.innerHTML = `
+                <label class="row-check"><input type="checkbox" class="row-check-box" ${checked}></label>
                 <div class="status-dot ${v.status}" title="${escapeHtml(v.status)}">${statusGlyph(v.status)}</div>
                 <div class="video-body">
                     <div class="video-filename">
@@ -700,22 +800,45 @@
                     <div class="video-date">📅 ${formatDate(v.created_at)} · 📐 ${escapeHtml(v.resolution)} · ⏱️ ${v.seconds}s${sizeStr}
                         ${showPct ? `<span class="video-progress"> · ${pct}%</span>` : ''}</div>
                 </div>
-                <button class="btn-delete" title="Delete">🗑️</button>`;
+                <div class="row-actions">
+                    ${retryBtn}
+                    <button class="btn-delete" title="Delete">🗑️</button>
+                </div>`;
 
+            const cb = item.querySelector('.row-check-box');
+            cb.addEventListener('click', (e) => e.stopPropagation());
+            cb.addEventListener('change', () => {
+                if (cb.checked) selectedIds.add(v.video_id); else selectedIds.delete(v.video_id);
+                updateSelectionUI();
+            });
             item.querySelector('.btn-delete').addEventListener('click', (e) => { e.stopPropagation(); deleteVideo(v.video_id); });
+            const rb = item.querySelector('.btn-retry');
+            if (rb) rb.addEventListener('click', (e) => { e.stopPropagation(); retryVideos([v.video_id]); });
             item.querySelector('.download-icon').addEventListener('click', (e) => e.stopPropagation());
             item.addEventListener('click', () => { if (isPlayable(v)) openModal(v); });
             return item;
         }
 
         function renderVideos() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const list = document.getElementById('videoList');
             const empty = document.getElementById('emptyState');
-            const filtered = allVideos.filter(v => (v.prompt || '').toLowerCase().includes(searchTerm));
+            const filtered = allVideos.filter(matchesFilters);
             list.innerHTML = '';
             empty.style.display = filtered.length ? 'none' : 'block';
             filtered.forEach(v => list.appendChild(createVideoItem(v)));
+            filterCountEl.textContent = allVideos.length
+                ? `${filtered.length} of ${allVideos.length}` : '';
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            // Drop selections that no longer exist.
+            const ids = new Set(allVideos.map(v => v.video_id));
+            for (const id of [...selectedIds]) if (!ids.has(id)) selectedIds.delete(id);
+            selectToolbar.style.display = selectedIds.size ? 'flex' : 'none';
+            selectCountEl.textContent = `${selectedIds.size} selected`;
+            const visible = allVideos.filter(matchesFilters);
+            selectAllEl.checked = visible.length > 0 && visible.every(v => selectedIds.has(v.video_id));
         }
 
         async function fetchHistory() {
@@ -736,12 +859,48 @@
                 const r = await fetch(`/history/${videoId}`, { method: 'DELETE' });
                 if (!r.ok) throw new Error(r.statusText);
                 allVideos = allVideos.filter(v => v.video_id !== videoId);
+                selectedIds.delete(videoId);
                 if (latestNewId === videoId) latestNewId = null;
                 renderVideos();
             } catch (err) { alert(`Error deleting video: ${err.message}`); }
         }
 
-        document.getElementById('searchInput').addEventListener('input', renderVideos);
+        async function retryVideos(ids) {
+            const results = await Promise.allSettled(
+                ids.map(id => fetch(`/retry/${id}`, { method: 'POST' }).then(r => {
+                    if (!r.ok) throw new Error(r.statusText); return id;
+                }))
+            );
+            const ok = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+            ids.forEach(id => selectedIds.delete(id));
+            if (ok.length) { track(ok); flash(`Retrying ${ok.length} video${ok.length !== 1 ? 's' : ''}…`, 'info'); }
+            await refreshHistory();
+        }
+
+        // ---------- Multi-select + filters ----------
+        searchInput.addEventListener('input', renderVideos);
+        dateFrom.addEventListener('change', renderVideos);
+        dateTo.addEventListener('change', renderVideos);
+        document.getElementById('clearFilters').addEventListener('click', () => {
+            searchInput.value = ''; dateFrom.value = ''; dateTo.value = ''; renderVideos();
+        });
+        selectAllEl.addEventListener('change', () => {
+            const visible = allVideos.filter(matchesFilters);
+            if (selectAllEl.checked) visible.forEach(v => selectedIds.add(v.video_id));
+            else visible.forEach(v => selectedIds.delete(v.video_id));
+            renderVideos();
+        });
+        document.getElementById('retrySelected').addEventListener('click', () => {
+            const ids = [...selectedIds]; if (ids.length) retryVideos(ids);
+        });
+        document.getElementById('deleteSelected').addEventListener('click', async () => {
+            const ids = [...selectedIds];
+            if (!ids.length) return;
+            if (!confirm(`Delete ${ids.length} selected video${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+            await Promise.allSettled(ids.map(id => fetch(`/history/${id}`, { method: 'DELETE' })));
+            ids.forEach(id => selectedIds.delete(id));
+            await refreshHistory();
+        });
 
         // ---------- Modal ----------
         function openModal(v) {
