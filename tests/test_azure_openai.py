@@ -57,18 +57,20 @@ def test_service_initialization_logging(mock_env_vars, caplog):
 def test_endpoint_is_normalized(azure_service: AzureOpenAIService):
     """Trailing slash / /videos / /openai path should be stripped from the base."""
     assert azure_service.endpoint == "https://test.openai.azure.com"
-    assert azure_service._videos_url() == "https://test.openai.azure.com/videos"
+    assert (
+        azure_service._videos_url() == "https://test.openai.azure.com/openai/v1/videos"
+    )
 
 
 def test_endpoint_strips_videos_suffix(mock_env_vars):
     """A pasted .../videos URL should be reduced to the resource base."""
     with patch.dict(
         "os.environ",
-        {"AZURE_OPENAI_ENDPOINT": "https://foo.services.ai.azure.com/videos"},
+        {"AZURE_OPENAI_ENDPOINT": "https://foo.services.ai.azure.com/openai/v1/videos"},
     ):
         svc = AzureOpenAIService()
     assert svc.endpoint == "https://foo.services.ai.azure.com"
-    assert svc._videos_url() == "https://foo.services.ai.azure.com/videos"
+    assert svc._videos_url() == "https://foo.services.ai.azure.com/openai/v1/videos"
 
 
 # --------------------------------------------------------------------- create
@@ -106,7 +108,7 @@ async def test_create_video_builds_correct_body(azure_service: AzureOpenAIServic
 
     assert remote_id == "video_123"
     args, kwargs = client.post.call_args
-    assert args[0] == "https://test.openai.azure.com/videos"
+    assert args[0] == "https://test.openai.azure.com/openai/v1/videos"
     assert kwargs["json"] == {
         "prompt": "A beautiful sunset",
         "model": "sora-2",
@@ -201,8 +203,11 @@ async def test_poll_video_success_downloads(azure_service: AzureOpenAIService):
     assert status.progress == 100
     poll_url = client.get.call_args_list[0].args[0]
     download_url = client.get.call_args_list[-1].args[0]
-    assert poll_url == "https://test.openai.azure.com/videos/video_abc"
-    assert download_url == "https://test.openai.azure.com/videos/video_abc/content"
+    assert poll_url == "https://test.openai.azure.com/openai/v1/videos/video_abc"
+    assert (
+        download_url
+        == "https://test.openai.azure.com/openai/v1/videos/video_abc/content"
+    )
 
 
 @pytest.mark.asyncio
