@@ -4,15 +4,18 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 ## 🚀 Features
 
-- **Web Interface**: Intuitive HTML/CSS/JavaScript frontend for easy video generation
-- **Enhanced Video History**: Advanced history page with search, filtering, sorting, and modal video playback
-  - 🔍 **Search**: Filter videos by prompt text
-  - 📊 **Sort**: Sort by date, resolution, or duration
-  - 🎯 **Filter**: Filter by resolution, duration, and status
-  - 🎬 **Modal Playback**: Click any video to view in a full-screen modal
-  - 🗑️ **Delete**: Remove videos and their history entries
+- **Single-page Web Interface**: Video history on the left (file name, download, date,
+  prompt), the creation form on the right — no separate history page.
+  - 🔍 **Search** history by prompt text
+  - 🌗 **Dark mode**: toggle persisted in `localStorage`, follows `prefers-color-scheme`,
+    with colour-blind-safe status glyphs (●/◐/○)
+  - 🎬 **Modal Playback**: click any completed video to play it full-screen
+  - ⬇️ **Download** / 🗑️ **Delete** per entry
+- **MCP Server**: the container is also an MCP server (streamable HTTP at `/mcp`), so another
+  system can drive **batch** video jobs remotely
 - **Persistent Storage**: Videos are downloaded and saved locally with volume mount support
-- **Azure OpenAI Integration**: Seamless connection to Azure OpenAI Sora 2 video generation
+- **Azure OpenAI Integration**: Talks to the Azure Foundry **Sora 2** REST API directly
+  (`/openai/v1/video/generations`, api-version `preview`)
 - **Containerized**: Multi-stage Docker build optimized for ease of use
 
 ## 📋 Requirements
@@ -26,45 +29,31 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | Yes | - |
-| `AZURE_OPENAI_VIDEO_URL` | **(Recommended)** Complete URL for video generation endpoint. When provided, this takes precedence over other URL configuration. Use this to specify the exact endpoint URL for your Azure service. Example: `https://your-instance.cognitiveservices.azure.com/openai/v1/videos` | No | - |
-| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint URL (must start with `http://` or `https://`). Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | Yes (if `AZURE_OPENAI_VIDEO_URL` not set) | - |
+| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI **resource** base URL (must start with `http://`/`https://`). Just the resource root — e.g. `https://your-instance.openai.azure.com` or `https://your-instance.cognitiveservices.azure.com`. The app builds the `/openai/v1/video/generations/...` paths itself. | Yes | - |
+| `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key (sent as the `api-key` header) | Yes | - |
 | `AZURE_OPENAI_DEPLOYMENT` | Sora 2 model deployment name | No | `sora-2` |
-| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version for video generation. Only used if `AZURE_OPENAI_VIDEO_URL` is not set. | No | `2024-08-01-preview` |
+| `MCP_AUTH_TOKEN` | If set, the `/mcp` endpoint requires `Authorization: Bearer <token>`. If unset, `/mcp` is open (intended for LAN / WireGuard-only use). | No | - |
 | `VIDEO_STORAGE_DIR` | Directory path for storing generated videos and history | No | `/app/data` |
 | `TZ` | Timezone for container logs (e.g., `America/New_York`, `Europe/London`) | No | `UTC` |
 
-### Configuration Modes
+### Endpoint configuration
 
-The service supports two configuration modes:
+Point `AZURE_OPENAI_ENDPOINT` at your resource root only. Foundry shows several URLs in
+different places — **use the base resource URL**, not a pre-built `/openai/...` path. The app
+always calls the canonical Sora 2 REST surface (api-version `preview`):
 
-#### 1. Custom Video URL Mode (Recommended)
-Use `AZURE_OPENAI_VIDEO_URL` to specify the complete endpoint URL. This is the most flexible approach and works with different Azure services and URL structures:
+- Create: `POST {endpoint}/openai/v1/video/generations/jobs?api-version=preview`
+- Poll:   `GET  {endpoint}/openai/v1/video/generations/jobs/{job_id}?api-version=preview`
+- Download: `GET {endpoint}/openai/v1/video/generations/{generation_id}/content/video?api-version=preview`
 
 ```bash
+export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com"
 export AZURE_OPENAI_API_KEY="your-api-key"
-export AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos"
 export AZURE_OPENAI_DEPLOYMENT="sora-2"
 ```
 
-This mode is recommended because:
-- It gives you full control over the endpoint URL
-- It works with both `.openai.azure.com` and `.cognitiveservices.azure.com` domains
-- It supports different API path structures
-- It allows you to omit API versions if not required by your service
-
-#### 2. Legacy Mode (Automatic URL Construction)
-Use `AZURE_OPENAI_ENDPOINT` to let the service construct the URL automatically:
-
-```bash
-export AZURE_OPENAI_API_KEY="your-api-key"
-export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/"
-export AZURE_OPENAI_DEPLOYMENT="sora-2"
-export AZURE_OPENAI_API_VERSION="2024-08-01-preview"
-```
-
-This mode automatically constructs URLs in the format:
-`{ENDPOINT}/openai/deployments/{DEPLOYMENT}/videos?api-version={API_VERSION}`
+A trailing slash or an accidental `/openai/...` suffix on the endpoint is tolerated and
+stripped automatically.
 
 ## 🏗️ Installation & Setup
 
@@ -77,26 +66,14 @@ This mode automatically constructs URLs in the format:
 
 2. **Run the container**
 
-   **Option A: Using Custom Video URL (Recommended)**
    ```bash
    docker run -d \
      --name sora-webserver \
      -p 8000:8000 \
      -v $(pwd)/data:/app/data \
+     -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com" \
      -e AZURE_OPENAI_API_KEY="your-api-key" \
-     -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
-     -e TZ="America/New_York" \
-     azure-openai-sora-webserver
-   ```
-
-   **Option B: Using Legacy Endpoint Configuration**
-   ```bash
-   docker run -d \
-     --name sora-webserver \
-     -p 8000:8000 \
-     -v $(pwd)/data:/app/data \
-     -e AZURE_OPENAI_API_KEY="your-api-key" \
-     -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
+     -e AZURE_OPENAI_DEPLOYMENT="sora-2" \
      -e TZ="America/New_York" \
      azure-openai-sora-webserver
    ```
@@ -114,30 +91,17 @@ This mode automatically constructs URLs in the format:
 
 The application is automatically built and published to GitHub Container Registry (GHCR):
 
-**Option A: Using Custom Video URL (Recommended)**
 ```bash
-docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
+docker pull ghcr.io/loryanstrant/azure-openai-sora-2-webserver:latest
 docker run -d \
   --name sora-webserver \
   -p 8000:8000 \
   -v $(pwd)/data:/app/data \
+  -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com" \
   -e AZURE_OPENAI_API_KEY="your-api-key" \
-  -e AZURE_OPENAI_VIDEO_URL="https://your-instance.cognitiveservices.azure.com/openai/v1/videos" \
+  -e AZURE_OPENAI_DEPLOYMENT="sora-2" \
   -e TZ="America/New_York" \
-  ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
-```
-
-**Option B: Using Legacy Endpoint Configuration**
-```bash
-docker pull ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
-docker run -d \
-  --name sora-webserver \
-  -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
-  -e AZURE_OPENAI_API_KEY="your-api-key" \
-  -e AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com/" \
-  -e TZ="America/New_York" \
-  ghcr.io/loryanstrant/azure-openai-sora-webserver:latest
+  ghcr.io/loryanstrant/azure-openai-sora-2-webserver:latest
 ```
 
 ## 🎯 Usage
@@ -151,7 +115,33 @@ docker run -d \
 5. **(Optional)** Upload a reference image for image-to-video generation
 6. Click "Generate Video"
 7. Monitor progress and view the generated video
-8. View all generated videos at http://localhost:8000/static/history.html
+8. Browse, play, download, and delete past videos in the history list on the left of the
+   same page. Toggle 🌙/☀️ in the top-right for dark mode.
+
+### MCP Server (batch jobs from another system)
+
+The container also serves an MCP endpoint over streamable HTTP at `/mcp` on the same port,
+so another system can run batch jobs. Point an MCP client at `http://<host>:8000/mcp`.
+
+Tools:
+
+| Tool | Purpose |
+|------|---------|
+| `generate_video(prompt, resolution="1280x720", seconds=4)` | Start a job; returns `video_id` |
+| `get_video_status(video_id)` | Status + progress of a job |
+| `list_history()` | All past generations (newest first) |
+| `get_video(video_id)` | Download URL (`/videos/{video_id}`) for a finished video |
+
+If `MCP_AUTH_TOKEN` is set, every `/mcp` request must send `Authorization: Bearer <token>`.
+Example `.mcp.json` entry:
+
+```json
+{ "mcpServers": { "sora": {
+    "type": "http",
+    "url": "http://your-host:8000/mcp",
+    "headers": { "Authorization": "Bearer ${MCP_AUTH_TOKEN}" }
+} } }
+```
 
 
 ## 🐛 Troubleshooting
@@ -213,10 +203,12 @@ This application uses the Azure OpenAI Sora 2 API, which provides the following 
   - Supported formats: JPEG, PNG, WebP
   - Resolution must match the selected video resolution exactly
   - Used as a visual anchor for the first frame
-- **API Endpoints**:
-  - `client.videos.create()` - Start video generation
-  - `client.videos.retrieve()` - Check generation status
-  - `client.videos.download_content()` - Download completed video
-- **Status Values**: `queued`, `in_progress`, `completed`, `failed`, `cancelled`
+- **REST surface** (api-version `preview`):
+  - `POST /openai/v1/video/generations/jobs` — start a job
+  - `GET  /openai/v1/video/generations/jobs/{job_id}` — poll status
+  - `GET  /openai/v1/video/generations/{generation_id}/content/video` — download
+- **Azure job statuses**: `queued`, `preprocessing`, `running`, `processing`, `succeeded`,
+  `failed`, `cancelled` — normalized internally to
+  `queued` / `in_progress` / `completed` / `failed` / `cancelled`.
 
-For more information, see the [Microsoft documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/video-generation).
+For more information, see the [Microsoft documentation](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/video-generation?pivots=rest-api).

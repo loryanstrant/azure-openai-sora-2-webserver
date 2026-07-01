@@ -1,12 +1,12 @@
 """Data models for the Azure OpenAI Sora service."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class VideoResolution(str, Enum):
+class VideoResolution(StrEnum):
     """Video resolution options for Sora 2."""
 
     PORTRAIT = "720x1280"  # Portrait format
@@ -55,7 +55,8 @@ class VideoStatus(BaseModel):
     progress: int = Field(default=0, ge=0, le=100)
     video_url: str | None = None
     revised_prompt: str | None = None
-    azure_video_id: str | None = None  # The video ID from Azure API
+    azure_video_id: str | None = None  # The Azure generation *job* id
+    azure_generation_id: str | None = None  # The generation id used to download
 
 
 class VideoHistoryEntry(BaseModel):
