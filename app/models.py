@@ -73,3 +73,4 @@ class VideoHistoryEntry(BaseModel):
     file_path: str | None = None
     file_size_bytes: int | None = None
     revised_prompt: str | None = None
+    filename: str | None = None  # optional user-chosen download name

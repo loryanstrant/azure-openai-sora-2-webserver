@@ -22,6 +22,8 @@
             --err-bg: #ffebee;
             --info: #1976d2;
             --info-bg: #e3f2fd;
+            --new: #b8860b;
+            --new-bg: #fff4d6;
         }
 
         [data-theme="dark"] {
@@ -41,6 +43,8 @@
             --err-bg: #34211f;
             --info: #86bcff;
             --info-bg: #1b2735;
+            --new: #ffd772;
+            --new-bg: #3a3117;
         }
 
         * { box-sizing: border-box; }
@@ -54,10 +58,7 @@
             transition: background 0.2s, color 0.2s;
         }
 
-        .page {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .page { max-width: 1400px; margin: 0 auto; }
 
         .topbar {
             display: flex;
@@ -68,10 +69,7 @@
             flex-wrap: wrap;
         }
 
-        h1 {
-            font-size: 24px;
-            margin: 0;
-        }
+        h1 { font-size: 24px; margin: 0; }
 
         .topbar-meta {
             display: flex;
@@ -80,7 +78,6 @@
             font-size: 13px;
             color: var(--text-muted);
         }
-
         .topbar-meta a { color: var(--accent); text-decoration: none; }
         .topbar-meta a:hover { text-decoration: underline; }
 
@@ -101,10 +98,7 @@
             gap: 20px;
             align-items: start;
         }
-
-        @media (max-width: 900px) {
-            .layout { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
 
         .panel {
             background: var(--panel);
@@ -113,11 +107,7 @@
             padding: 22px;
             box-shadow: var(--shadow);
         }
-
-        .panel h2 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
-        }
+        .panel h2 { margin: 0 0 16px 0; font-size: 18px; }
 
         /* ---- Form ---- */
         label {
@@ -127,7 +117,6 @@
             color: var(--text);
             font-size: 14px;
         }
-
         input, select, textarea {
             width: 100%;
             padding: 11px;
@@ -136,68 +125,123 @@
             font-size: 15px;
             background: var(--panel-alt);
             color: var(--text);
+            font-family: inherit;
         }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--accent);
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+            line-height: 1.5;
         }
 
-        textarea { height: 100px; resize: vertical; }
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .char-counter { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+        .char-counter.over { color: var(--err); }
 
         .form-group { margin-bottom: 16px; }
-
-        .two-column {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
+        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .hint { color: var(--text-muted); font-size: 12px; display: block; margin-top: 5px; }
 
-        button.primary {
-            background: var(--accent);
-            color: var(--accent-contrast);
-            padding: 12px 24px;
-            border: none;
+        .btn-row { display: flex; gap: 10px; margin-top: 6px; }
+
+        button.primary, button.secondary {
+            padding: 12px 20px;
             border-radius: 6px;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            width: 100%;
-            margin-top: 6px;
+            flex: 1;
+        }
+        button.primary {
+            background: var(--accent);
+            color: var(--accent-contrast);
+            border: none;
         }
         button.primary:hover { background: var(--accent-hover); }
-        button.primary:disabled { background: var(--text-muted); cursor: not-allowed; }
+        button.secondary {
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+        button.secondary:hover { background: var(--info-bg); }
+        button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-        .status {
+        /* ---- Queue ---- */
+        .queue-panel {
             margin-top: 18px;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
             padding: 14px;
-            border-radius: 6px;
-            display: none;
+        }
+        .queue-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
             font-size: 14px;
         }
-        .status.info { background: var(--info-bg); color: var(--info); }
-        .status.success { background: var(--ok-bg); color: var(--ok); }
-        .status.error { background: var(--err-bg); color: var(--err); }
-
-        .progress {
-            width: 100%;
-            height: 18px;
+        .queue-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .queue-item {
+            display: grid;
+            grid-template-columns: 1fr auto 24px;
+            gap: 10px;
+            align-items: center;
             background: var(--panel-alt);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+        .queue-item .qp {
             overflow: hidden;
-            margin-top: 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .progress-bar {
-            height: 100%;
-            background: var(--accent);
-            transition: width 0.3s ease;
-            width: 0%;
+        .queue-item .qmeta { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+        .queue-remove {
+            background: transparent;
+            border: none;
+            color: var(--err);
+            cursor: pointer;
+            font-size: 15px;
         }
+        .queue-actions { display: flex; gap: 10px; }
 
-        .video-result { margin-top: 18px; text-align: center; }
-        .video-result video { max-width: 100%; border-radius: 8px; background: #000; }
+        /* ---- Status area ---- */
+        .status-area { margin-top: 18px; }
+        .summary {
+            font-size: 14px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 20px;
+        }
+        .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .flash {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+        .flash.info { background: var(--info-bg); color: var(--info); }
+        .flash.success { background: var(--ok-bg); color: var(--ok); }
+        .flash.error { background: var(--err-bg); color: var(--err); }
 
         /* ---- History list ---- */
         .history-head {
@@ -215,10 +259,9 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: 74vh;
+            max-height: 78vh;
             overflow-y: auto;
         }
-
         .video-item {
             display: grid;
             grid-template-columns: 22px 1fr auto;
@@ -232,7 +275,6 @@
         }
         .video-item:hover { border-color: var(--accent); }
 
-        /* Colour-blind-safe status glyphs (shape + fill, not colour alone) */
         .status-dot { font-size: 16px; line-height: 1; text-align: center; }
         .status-dot.completed { color: var(--ok); }
         .status-dot.failed, .status-dot.cancelled { color: var(--err); }
@@ -247,12 +289,18 @@
             align-items: center;
             gap: 8px;
         }
-        .download-icon {
-            color: var(--accent);
-            text-decoration: none;
-            font-size: 14px;
-        }
+        .download-icon { color: var(--accent); text-decoration: none; font-size: 14px; }
         .download-icon.disabled { color: var(--text-muted); opacity: 0.4; pointer-events: none; }
+        .new-badge {
+            background: var(--new-bg);
+            color: var(--new);
+            border: 1px solid var(--new);
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            letter-spacing: 0.5px;
+        }
         .video-prompt {
             margin: 4px 0 2px 0;
             font-size: 14px;
@@ -263,6 +311,7 @@
             overflow: hidden;
         }
         .video-date { font-size: 12px; color: var(--text-muted); }
+        .video-progress { font-size: 12px; color: var(--info); font-weight: 600; }
 
         .btn-delete {
             background: transparent;
@@ -275,11 +324,7 @@
         }
         .btn-delete:hover { border-color: var(--err); }
 
-        .empty-state, .loading {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-        }
+        .empty-state, .loading { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 
         /* ---- Modal ---- */
         .modal {
@@ -345,10 +390,14 @@
             <!-- RIGHT: create -->
             <section class="panel">
                 <h2>✨ Create a Video</h2>
-                <form id="videoForm">
+                <form id="videoForm" autocomplete="off">
                     <div class="form-group">
-                        <label for="prompt">Video Description *</label>
-                        <textarea id="prompt" name="prompt" placeholder="Describe the video you want to generate. Be detailed and specific." required></textarea>
+                        <div class="label-row">
+                            <label for="prompt">Video Description *</label>
+                            <span class="char-counter" id="charCounter">0 / 1000</span>
+                        </div>
+                        <textarea id="prompt" name="prompt" maxlength="1000"
+                            placeholder="Describe the video you want to generate. Be detailed and specific — up to 1000 characters." required></textarea>
                     </div>
 
                     <div class="two-column">
@@ -370,25 +419,40 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="inputImage">Input Image (Optional)</label>
-                        <input type="file" id="inputImage" name="input_image" accept="image/jpeg,image/png,image/webp">
-                        <small class="hint">Reference image for image-to-video. JPEG, PNG, or WebP; should match the selected resolution.</small>
+                        <label for="filename">File name (Optional)</label>
+                        <input type="text" id="filename" name="filename" maxlength="120"
+                            placeholder="e.g. ocean-sunset (saved as ocean-sunset.mp4)">
+                        <small class="hint">The finished video downloads with this name. Leave blank to use the generated id. <code>.mp4</code> is added automatically.</small>
                     </div>
 
-                    <button type="submit" class="primary" id="generateBtn">Generate Video</button>
+                    <div class="form-group">
+                        <label for="inputImage">Input Image (Optional)</label>
+                        <input type="file" id="inputImage" name="input_image" accept="image/jpeg,image/png,image/webp">
+                        <small class="hint">Reference image for image-to-video (applies to <strong>Generate</strong> only, not the batch queue). JPEG, PNG, or WebP.</small>
+                    </div>
+
+                    <div class="btn-row">
+                        <button type="submit" class="primary" id="generateBtn">Generate</button>
+                        <button type="button" class="secondary" id="queueBtn">+ Add to queue</button>
+                    </div>
                 </form>
 
-                <div id="status" class="status">
-                    <div id="statusText"></div>
-                    <div class="progress" id="progressContainer" style="display:none;">
-                        <div class="progress-bar" id="progressBar"></div>
+                <!-- Batch queue -->
+                <div class="queue-panel" id="queuePanel" style="display:none;">
+                    <div class="queue-head">
+                        <span id="queueTitle">Queued (0)</span>
+                    </div>
+                    <div class="queue-list" id="queueList"></div>
+                    <div class="queue-actions">
+                        <button type="button" class="primary" id="generateAllBtn">Generate all</button>
+                        <button type="button" class="secondary" id="clearQueueBtn">Clear</button>
                     </div>
                 </div>
 
-                <div id="videoResult" class="video-result" style="display:none;">
-                    <h3>Generated Video</h3>
-                    <video controls id="resultVideo"></video>
-                    <p id="revisedPrompt" style="margin-top:12px; font-style:italic; color:var(--text-muted);"></p>
+                <!-- Live status -->
+                <div class="status-area">
+                    <div class="summary" id="summary"></div>
+                    <div class="flash" id="flash"></div>
                 </div>
             </section>
         </div>
@@ -416,8 +480,7 @@
         function initTheme() {
             const saved = localStorage.getItem('theme');
             if (saved) { applyTheme(saved); return; }
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            applyTheme(prefersDark ? 'dark' : 'light');
+            applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         }
         themeToggle.addEventListener('click', () => {
             const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -426,69 +489,222 @@
         });
         initTheme();
 
+        // ---------- Elements ----------
+        const promptEl = document.getElementById('prompt');
+        const resEl = document.getElementById('resolution');
+        const secEl = document.getElementById('seconds');
+        const filenameEl = document.getElementById('filename');
+        const imageEl = document.getElementById('inputImage');
+        const generateBtn = document.getElementById('generateBtn');
+        const queueBtn = document.getElementById('queueBtn');
+        const charCounter = document.getElementById('charCounter');
+        const summaryEl = document.getElementById('summary');
+        const flashEl = document.getElementById('flash');
+
         // ---------- Version ----------
-        async function fetchVersion() {
+        (async () => {
             try {
-                const r = await fetch('/version');
-                const d = await r.json();
+                const d = await (await fetch('/version')).json();
                 document.getElementById('versionInfo').textContent = `v${d.version}`;
             } catch { document.getElementById('versionInfo').textContent = ''; }
-        }
+        })();
 
         // ---------- Helpers ----------
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : text;
-            return div.innerHTML;
-        }
+        function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
         function formatDate(iso) {
-            const d = new Date(iso);
-            return d.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
-        function formatSize(bytes) {
-            if (!bytes) return '';
-            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-        }
-        // Colour-blind-safe glyph: filled/half/open circle by state.
-        function statusGlyph(status) {
-            if (status === 'completed') return '●';
-            if (status === 'failed' || status === 'cancelled') return '○';
+        function formatSize(b) { return b ? `${(b / (1024 * 1024)).toFixed(2)} MB` : ''; }
+        function statusGlyph(s) {
+            if (s === 'completed') return '●';
+            if (s === 'failed' || s === 'cancelled') return '○';
             return '◐';
+        }
+        function flash(msg, type = 'info') {
+            flashEl.className = `flash ${type}`;
+            flashEl.style.display = 'block';
+            flashEl.textContent = msg;
+        }
+
+        function updateCounter() {
+            const n = promptEl.value.length;
+            charCounter.textContent = `${n} / 1000`;
+            charCounter.classList.toggle('over', n >= 1000);
+        }
+        promptEl.addEventListener('input', updateCounter);
+
+        function resetForm() {
+            promptEl.value = '';
+            filenameEl.value = '';
+            imageEl.value = '';
+            updateCounter();
+        }
+        function setBusy(busy) {
+            generateBtn.disabled = busy;
+            queueBtn.disabled = busy;
+            generateBtn.textContent = busy ? 'Working…' : 'Generate';
+        }
+
+        // ---------- Batch queue ----------
+        let queue = [];
+        const queuePanel = document.getElementById('queuePanel');
+        const queueList = document.getElementById('queueList');
+        const queueTitle = document.getElementById('queueTitle');
+
+        function renderQueue() {
+            queuePanel.style.display = queue.length ? 'block' : 'none';
+            queueTitle.textContent = `Queued (${queue.length})`;
+            document.getElementById('generateAllBtn').textContent =
+                `Generate all (${queue.length})`;
+            queueList.innerHTML = '';
+            queue.forEach((s, i) => {
+                const row = document.createElement('div');
+                row.className = 'queue-item';
+                const nameTag = s.filename ? `📄 ${escapeHtml(s.filename)} · ` : '';
+                row.innerHTML = `
+                    <span class="qp">${escapeHtml(s.prompt)}</span>
+                    <span class="qmeta">${nameTag}${s.resolution} · ${s.seconds}s</span>
+                    <button class="queue-remove" title="Remove">×</button>`;
+                row.querySelector('.queue-remove').addEventListener('click', () => {
+                    queue.splice(i, 1); renderQueue();
+                });
+                queueList.appendChild(row);
+            });
+        }
+
+        function addToQueue() {
+            const prompt = promptEl.value.trim();
+            if (!prompt) { flash('Enter a description to queue.', 'error'); return; }
+            queue.push({ prompt, resolution: resEl.value, seconds: secEl.value, filename: filenameEl.value.trim() });
+            resetForm();
+            renderQueue();
+            promptEl.focus();
+        }
+        queueBtn.addEventListener('click', addToQueue);
+        document.getElementById('clearQueueBtn').addEventListener('click', () => { queue = []; renderQueue(); });
+
+        // ---------- Submit ----------
+        async function submitSpec(spec) {
+            const fd = new FormData();
+            fd.append('prompt', spec.prompt);
+            fd.append('resolution', spec.resolution);
+            fd.append('seconds', spec.seconds);
+            if (spec.filename) fd.append('filename', spec.filename);
+            if (spec.imageFile) fd.append('input_image', spec.imageFile);
+            const r = await fetch('/generate', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Unknown error');
+            return d.video_id;
+        }
+
+        document.getElementById('videoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const prompt = promptEl.value.trim();
+            if (!prompt) { flash('Enter a description first.', 'error'); return; }
+            const spec = { prompt, resolution: resEl.value, seconds: secEl.value, filename: filenameEl.value.trim(), imageFile: imageEl.files[0] || null };
+            setBusy(true);
+            try {
+                const id = await submitSpec(spec);
+                resetForm();
+                track([id]);
+                flash('Generation started — watch it in the history list.', 'info');
+            } catch (err) { flash(`Error: ${err.message}`, 'error'); }
+            setBusy(false);
+        });
+
+        document.getElementById('generateAllBtn').addEventListener('click', async () => {
+            if (!queue.length) return;
+            const items = queue.slice();
+            setBusy(true);
+            flash(`Submitting ${items.length} video${items.length !== 1 ? 's' : ''}…`, 'info');
+            const results = await Promise.allSettled(items.map(submitSpec));
+            const ids = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+            const failed = results.length - ids.length;
+            queue = [];
+            renderQueue();
+            resetForm();
+            track(ids);
+            flash(`Queued ${ids.length} video${ids.length !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}. ` +
+                  `They’ll keep generating — you can walk away.`, failed ? 'error' : 'success');
+            setBusy(false);
+        });
+
+        // ---------- Live tracking ----------
+        let allVideos = [];
+        const activeIds = new Set();
+        const progressMap = {};
+        let latestNewId = null;
+        let pollTimer = null;
+
+        function track(ids) {
+            ids.forEach(id => activeIds.add(id));
+            if (ids.length && !pollTimer) pollTimer = setInterval(tick, 2500);
+            refreshHistory();
+            updateSummary();
+        }
+
+        function updateSummary() {
+            if (activeIds.size > 0) {
+                summaryEl.innerHTML = `<span class="spinner"></span> ${activeIds.size} generating…`;
+            } else {
+                summaryEl.textContent = '';
+            }
+        }
+
+        async function tick() {
+            await fetchHistory();
+            for (const id of [...activeIds]) {
+                try {
+                    const r = await fetch(`/status/${id}`);
+                    if (!r.ok) { activeIds.delete(id); delete progressMap[id]; continue; }
+                    const d = await r.json();
+                    if (['completed', 'failed', 'cancelled'].includes(d.status)) {
+                        activeIds.delete(id);
+                        delete progressMap[id];
+                        if (d.status === 'completed') latestNewId = id;
+                    } else {
+                        progressMap[id] = d.progress;
+                    }
+                } catch { activeIds.delete(id); delete progressMap[id]; }
+            }
+            renderVideos();
+            updateSummary();
+            if (activeIds.size === 0 && pollTimer) {
+                clearInterval(pollTimer); pollTimer = null;
+                if (!flashEl.textContent.includes('walk away')) flash('All generations complete.', 'success');
+            }
         }
 
         // ---------- History ----------
-        let allVideos = [];
-
         function isPlayable(v) { return v.status === 'completed' && v.file_path; }
 
         function createVideoItem(v) {
             const item = document.createElement('div');
             item.className = 'video-item';
-
-            const filename = `${v.video_id}.mp4`;
+            const filename = v.filename || `${v.video_id}.mp4`;
             const downloadCls = isPlayable(v) ? 'download-icon' : 'download-icon disabled';
             const sizeStr = v.file_size_bytes ? ` · ${formatSize(v.file_size_bytes)}` : '';
+            const isNew = v.video_id === latestNewId;
+            const pct = progressMap[v.video_id];
+            const showPct = pct != null && v.status !== 'completed';
 
             item.innerHTML = `
                 <div class="status-dot ${v.status}" title="${escapeHtml(v.status)}">${statusGlyph(v.status)}</div>
                 <div class="video-body">
                     <div class="video-filename">
-                        <a class="${downloadCls}" href="/videos/${v.video_id}" download title="Download">⬇️</a>
+                        <a class="${downloadCls}" href="/videos/${v.video_id}" download="${escapeHtml(filename)}" title="Download">⬇️</a>
                         <span>${escapeHtml(filename)}</span>
+                        ${isNew ? '<span class="new-badge">NEW</span>' : ''}
                     </div>
                     <p class="video-prompt">${escapeHtml(v.prompt)}</p>
-                    <div class="video-date">📅 ${formatDate(v.created_at)} · 📐 ${escapeHtml(v.resolution)} · ⏱️ ${v.seconds}s${sizeStr}</div>
+                    <div class="video-date">📅 ${formatDate(v.created_at)} · 📐 ${escapeHtml(v.resolution)} · ⏱️ ${v.seconds}s${sizeStr}
+                        ${showPct ? `<span class="video-progress"> · ${pct}%</span>` : ''}</div>
                 </div>
-                <button class="btn-delete" title="Delete">🗑️</button>
-            `;
+                <button class="btn-delete" title="Delete">🗑️</button>`;
 
-            item.querySelector('.btn-delete').addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteVideo(v.video_id);
-            });
+            item.querySelector('.btn-delete').addEventListener('click', (e) => { e.stopPropagation(); deleteVideo(v.video_id); });
             item.querySelector('.download-icon').addEventListener('click', (e) => e.stopPropagation());
             item.addEventListener('click', () => { if (isPlayable(v)) openModal(v); });
-
             return item;
         }
 
@@ -497,23 +713,22 @@
             const list = document.getElementById('videoList');
             const empty = document.getElementById('emptyState');
             const filtered = allVideos.filter(v => (v.prompt || '').toLowerCase().includes(searchTerm));
-
             list.innerHTML = '';
             empty.style.display = filtered.length ? 'none' : 'block';
             filtered.forEach(v => list.appendChild(createVideoItem(v)));
         }
 
-        async function loadHistory() {
+        async function fetchHistory() {
             try {
                 const r = await fetch('/history');
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 allVideos = await r.json();
                 document.getElementById('loading').style.display = 'none';
-                renderVideos();
             } catch (err) {
                 document.getElementById('loading').textContent = `Failed to load history: ${err.message}`;
             }
         }
+        async function refreshHistory() { await fetchHistory(); renderVideos(); }
 
         async function deleteVideo(videoId) {
             if (!confirm('Delete this video? This cannot be undone.')) return;
@@ -521,6 +736,7 @@
                 const r = await fetch(`/history/${videoId}`, { method: 'DELETE' });
                 if (!r.ok) throw new Error(r.statusText);
                 allVideos = allVideos.filter(v => v.video_id !== videoId);
+                if (latestNewId === videoId) latestNewId = null;
                 renderVideos();
             } catch (err) { alert(`Error deleting video: ${err.message}`); }
         }
@@ -542,105 +758,18 @@
         }
         function closeModal() {
             const modal = document.getElementById('videoModal');
-            const video = document.getElementById('modalVideo');
+            document.getElementById('modalVideo').pause();
             modal.classList.remove('active');
-            video.pause();
         }
         document.getElementById('modalClose').addEventListener('click', closeModal);
         document.getElementById('videoModal').addEventListener('click', (e) => { if (e.target.id === 'videoModal') closeModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
-        // ---------- Create ----------
-        const form = document.getElementById('videoForm');
-        const generateBtn = document.getElementById('generateBtn');
-        const statusEl = document.getElementById('status');
-        const statusText = document.getElementById('statusText');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const videoResult = document.getElementById('videoResult');
-        const resultVideo = document.getElementById('resultVideo');
-        const revisedPrompt = document.getElementById('revisedPrompt');
-        let pollInterval = null;
-
-        function showStatus(message, type = 'info') {
-            statusEl.className = `status ${type}`;
-            statusEl.style.display = 'block';
-            statusText.textContent = message;
-        }
-        function updateProgress(percent) {
-            progressContainer.style.display = 'block';
-            progressBar.style.width = `${percent}%`;
-        }
-        function resetButton() {
-            generateBtn.disabled = false;
-            generateBtn.textContent = 'Generate Video';
-        }
-
-        function pollVideoStatus(videoId) {
-            pollInterval = setInterval(async () => {
-                try {
-                    const r = await fetch(`/status/${videoId}`);
-                    const d = await r.json();
-                    if (!r.ok) { clearInterval(pollInterval); showStatus('Error checking video status.', 'error'); resetButton(); return; }
-
-                    updateProgress(d.progress);
-                    if (d.status === 'completed') {
-                        clearInterval(pollInterval);
-                        showStatus('Video generated successfully!', 'success');
-                        resetButton();
-                        if (d.video_url) {
-                            resultVideo.src = d.video_url;
-                            revisedPrompt.textContent = d.revised_prompt ? `Revised prompt: ${d.revised_prompt}` : '';
-                            videoResult.style.display = 'block';
-                        }
-                        loadHistory();
-                    } else if (d.status === 'failed' || d.status === 'cancelled') {
-                        clearInterval(pollInterval);
-                        showStatus(`Video generation ${d.status}. Please try again.`, 'error');
-                        resetButton();
-                        loadHistory();
-                    } else {
-                        showStatus(`Generating video… (${d.status})`, 'info');
-                    }
-                } catch {
-                    clearInterval(pollInterval);
-                    showStatus('Network error while checking status.', 'error');
-                    resetButton();
-                }
-            }, 2000);
-        }
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            generateBtn.disabled = true;
-            generateBtn.textContent = 'Generating…';
-            videoResult.style.display = 'none';
-            showStatus('Starting video generation…', 'info');
-            updateProgress(0);
-            try {
-                const r = await fetch('/generate', { method: 'POST', body: formData });
-                const result = await r.json();
-                if (r.ok) {
-                    showStatus('Video generation started. Please wait…', 'info');
-                    loadHistory();
-                    pollVideoStatus(result.video_id);
-                } else {
-                    showStatus(`Error: ${result.detail || 'Unknown error'}`, 'error');
-                    resetButton();
-                }
-            } catch {
-                showStatus('Network error. Please check your connection.', 'error');
-                resetButton();
-            }
-        });
-
-        window.addEventListener('beforeunload', () => { if (pollInterval) clearInterval(pollInterval); });
-
         // ---------- Init ----------
-        fetchVersion();
-        loadHistory();
-        setInterval(loadHistory, 30000);
+        updateCounter();
+        refreshHistory();
+        setInterval(() => { if (!pollTimer) refreshHistory(); }, 30000);
+        window.addEventListener('beforeunload', () => { if (pollTimer) clearInterval(pollTimer); });
     </script>
 </body>
 </html>

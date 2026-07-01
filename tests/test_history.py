@@ -99,3 +99,44 @@ def test_delete_video_not_found(client):
     assert response.status_code == 404
     data = response.json()
     assert "not found" in data["detail"].lower()
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("ocean-sunset", "ocean-sunset.mp4"),
+        ("ocean sunset.mp4", "ocean sunset.mp4"),
+        ("../../etc/passwd", "etc_passwd.mp4"),
+        ("weird/name*?.mov", "weird_name.mov.mp4"),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_sanitize_filename(raw, expected):
+    from app.services.history import sanitize_filename
+
+    assert sanitize_filename(raw) == expected
+
+
+def test_add_entry_and_download_name(temp_storage_dir):
+    """A stored filename is returned as the download name; default otherwise."""
+    from app.services.history import HistoryService
+
+    history = HistoryService(storage_dir=temp_storage_dir)
+    history.add_entry(
+        video_id="vid-named",
+        prompt="p",
+        resolution="1280x720",
+        seconds=4,
+        had_input_image=False,
+        filename="My Clip",
+    )
+    history.add_entry(
+        video_id="vid-plain",
+        prompt="p",
+        resolution="1280x720",
+        seconds=4,
+        had_input_image=False,
+    )
+    assert history.get_download_name("vid-named") == "My Clip.mp4"
+    assert history.get_download_name("vid-plain") == "vid-plain.mp4"

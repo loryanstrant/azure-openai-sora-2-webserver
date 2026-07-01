@@ -61,7 +61,10 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def generate_video(
-    prompt: str, resolution: str = "1280x720", seconds: int = 4
+    prompt: str,
+    resolution: str = "1280x720",
+    seconds: int = 4,
+    filename: str = "",
 ) -> dict:
     """Start a Sora 2 video generation job.
 
@@ -69,6 +72,7 @@ async def generate_video(
         prompt: Description of the video to generate.
         resolution: "1280x720" (landscape) or "720x1280" (portrait).
         seconds: Duration in seconds (4, 8, or 12).
+        filename: Optional download filename for the finished video.
 
     Returns a dict with the ``video_id`` to poll with ``get_video_status``.
     """
@@ -76,7 +80,7 @@ async def generate_video(
     request = VideoGenerationRequest(
         prompt=prompt, resolution=resolution_enum, seconds=seconds
     )
-    video_id = await _svc().generate_video(request)
+    video_id = await _svc().generate_video(request, filename=filename or None)
     return {"video_id": video_id, "status": "pending"}
 
 
