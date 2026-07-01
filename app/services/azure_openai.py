@@ -1,17 +1,16 @@
 """Azure OpenAI service for video generation using Sora 2.
 
-Talks to the Azure Foundry Sora 2 REST surface directly with httpx:
+Targets the OpenAI-compatible **/videos** surface that Azure AI Foundry
+(`*.services.ai.azure.com`) exposes for Sora 2, per Microsoft's sample:
 
-- Create:   POST {endpoint}/openai/v1/video/generations/jobs?api-version=preview
-- Poll:     GET  {endpoint}/openai/v1/video/generations/jobs/{job_id}?api-version=preview
-- Download: GET  {endpoint}/openai/v1/video/generations/{generation_id}/content/video
-            ?api-version=preview
+    POST {endpoint}/videos            {"prompt","model","size","seconds"}
+    GET  {endpoint}/videos/{id}       -> status/progress
+    GET  {endpoint}/videos/{id}/content  -> the mp4 bytes
 
-Authentication is via the ``api-key`` header (API-key mode only).
+Authentication is `Authorization: Bearer <AZURE_OPENAI_API_KEY>`.
 """
 
 import asyncio
-import json
 import logging
 import os
 import uuid
@@ -24,31 +23,30 @@ from .history import HistoryService
 
 logger = logging.getLogger(__name__)
 
-# During the Sora 2 preview period the video generation API is served under the
-# ``preview`` api-version regardless of the resource's other API versions.
-API_VERSION = "preview"
-
-# Map Azure job statuses onto the internal vocabulary used by the frontend,
-# the history page CSS, and history.py's completed_at logic. Keeping these
-# strings stable means nothing downstream has to change.
+# Map the provider's video statuses onto the internal vocabulary used by the
+# frontend, the history page CSS, and history.py's completed_at logic. Kept
+# broad so it tolerates either Azure Sora surface's status names.
 _STATUS_MAP = {
     "queued": "queued",
     "preprocessing": "in_progress",
-    "running": "in_progress",
     "processing": "in_progress",
+    "running": "in_progress",
+    "in_progress": "in_progress",
     "succeeded": "completed",
+    "completed": "completed",
     "failed": "failed",
     "cancelled": "cancelled",
+    "canceled": "cancelled",
 }
 
 
-def _normalize_status(azure_status: str) -> str:
-    """Translate an Azure job status into our internal status vocabulary."""
-    return _STATUS_MAP.get(azure_status, "in_progress")
+def _normalize_status(provider_status: str) -> str:
+    """Translate a provider video status into our internal status vocabulary."""
+    return _STATUS_MAP.get(provider_status, "in_progress")
 
 
 class AzureOpenAIService:
-    """Service for interacting with the Azure OpenAI Sora 2 REST API."""
+    """Service for interacting with the Azure OpenAI Sora 2 /videos API."""
 
     def __init__(self):
         """Initialize the Azure OpenAI service from environment variables."""
@@ -67,11 +65,17 @@ class AzureOpenAIService:
         if not api_key:
             raise ValueError("AZURE_OPENAI_API_KEY environment variable is required")
 
-        # Hold the bare resource root; strip any trailing slash or accidental
-        # ``/openai...`` path so we always build paths from a clean base.
+        # Hold the bare resource root. Tolerate a pasted full URL by stripping a
+        # trailing slash and any trailing /videos or /openai... path segment, so
+        # we always build paths from a clean base.
         endpoint = endpoint.rstrip("/")
+        for suffix in ("/openai/v1/videos", "/videos"):
+            if endpoint.endswith(suffix):
+                endpoint = endpoint[: -len(suffix)]
+                break
         if "/openai" in endpoint:
             endpoint = endpoint.split("/openai", 1)[0]
+        endpoint = endpoint.rstrip("/")
 
         self.endpoint = endpoint
         self.api_key = api_key
@@ -80,8 +84,8 @@ class AzureOpenAIService:
         masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
         logger.info(
             "Azure OpenAI Service initialized - "
-            f"Endpoint: {self.endpoint}/, API Version: {API_VERSION}, "
-            f"Model: {self.deployment}, API Key: {masked_key}"
+            f"Endpoint: {self.endpoint}/, Model: {self.deployment}, "
+            f"API Key: {masked_key}"
         )
 
         self.video_jobs: dict[str, VideoStatus] = {}
@@ -91,27 +95,18 @@ class AzureOpenAIService:
 
     # ------------------------------------------------------------------ URLs
 
-    def _jobs_url(self) -> str:
-        return (
-            f"{self.endpoint}/openai/v1/video/generations/jobs"
-            f"?api-version={API_VERSION}"
-        )
+    def _videos_url(self) -> str:
+        return f"{self.endpoint}/videos"
 
-    def _job_url(self, job_id: str) -> str:
-        return (
-            f"{self.endpoint}/openai/v1/video/generations/jobs/{job_id}"
-            f"?api-version={API_VERSION}"
-        )
+    def _video_url(self, video: str) -> str:
+        return f"{self.endpoint}/videos/{video}"
 
-    def _download_url(self, generation_id: str) -> str:
-        return (
-            f"{self.endpoint}/openai/v1/video/generations/{generation_id}"
-            f"/content/video?api-version={API_VERSION}"
-        )
+    def _content_url(self, video: str) -> str:
+        return f"{self.endpoint}/videos/{video}/content"
 
     def _auth_headers(self, base: dict[str, str] | None = None) -> dict[str, str]:
         headers = dict(base or {})
-        headers["api-key"] = self.api_key
+        headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
     # -------------------------------------------------------------- lifecycle
@@ -137,7 +132,7 @@ class AzureOpenAIService:
         return video_id
 
     async def _run_job(self, request: VideoGenerationRequest, video_id: str) -> None:
-        """Create the Azure job and poll it to completion in the background."""
+        """Create the remote video and poll it to completion in the background."""
         try:
             self.video_jobs[video_id].status = "queued"
             self.video_jobs[video_id].progress = 10
@@ -145,11 +140,11 @@ class AzureOpenAIService:
 
             logger.info(f"Starting video generation - Video ID: {video_id}")
 
-            job_id = await self._create_job(request)
-            self.video_jobs[video_id].azure_video_id = job_id
+            remote_id = await self._create_video(request)
+            self.video_jobs[video_id].azure_video_id = remote_id
             self.video_jobs[video_id].progress = 20
 
-            await self._poll_job(video_id, job_id)
+            await self._poll_video(video_id, remote_id)
         except Exception as e:
             self.video_jobs[video_id].status = "failed"
             self.video_jobs[video_id].progress = 0
@@ -161,19 +156,16 @@ class AzureOpenAIService:
 
     # ------------------------------------------------------------------ create
 
-    async def _create_job(self, request: VideoGenerationRequest) -> str:
-        """Create a Sora 2 video generation job. Returns the Azure job id."""
-        width, height = (int(v) for v in request.resolution.value.split("x"))
-
+    async def _create_video(self, request: VideoGenerationRequest) -> str:
+        """Create a Sora 2 video. Returns the remote video id."""
         if request.input_image_data:
-            return await self._create_job_multipart(request, width, height)
+            return await self._create_video_multipart(request)
 
         body = {
             "prompt": request.prompt,
-            "width": width,
-            "height": height,
-            "n_seconds": request.seconds,
             "model": self.deployment,
+            "size": request.resolution.value,
+            "seconds": str(request.seconds),
         }
 
         logger.info(
@@ -182,66 +174,47 @@ class AzureOpenAIService:
             f"Resolution: {request.resolution.value}, Duration: {request.seconds}s"
         )
 
-        result = await self._post_job(
+        result = await self._post_video(
             json_body=body,
             headers=self._auth_headers({"Content-Type": "application/json"}),
         )
         return result["id"]
 
-    async def _create_job_multipart(
-        self, request: VideoGenerationRequest, width: int, height: int
-    ) -> str:
-        """Create an image-to-video job via multipart inpaint upload."""
-        file_name = "input.jpg"
+    async def _create_video_multipart(self, request: VideoGenerationRequest) -> str:
+        """Create an image-to-video job via multipart upload (input_reference)."""
         data = {
             "prompt": request.prompt,
-            "width": str(width),
-            "height": str(height),
-            "n_seconds": str(request.seconds),
             "model": self.deployment,
-            "inpaint_items": json.dumps(
-                [
-                    {
-                        "frame_index": 0,
-                        "type": "image",
-                        "file_name": file_name,
-                        "crop_bounds": {
-                            "left_fraction": 0.0,
-                            "top_fraction": 0.0,
-                            "right_fraction": 1.0,
-                            "bottom_fraction": 1.0,
-                        },
-                    }
-                ]
-            ),
+            "size": request.resolution.value,
+            "seconds": str(request.seconds),
         }
-        files = {"files": (file_name, request.input_image_data, "image/jpeg")}
+        files = {"input_reference": ("input.png", request.input_image_data)}
 
         logger.info(
             "Calling Sora API with image-to-video - "
             f"Model: {self.deployment}, Prompt: '{request.prompt}', "
-            f"Resolution: {width}x{height}, Duration: {request.seconds}s, "
+            f"Resolution: {request.resolution.value}, Duration: {request.seconds}s, "
             f"Image size: {len(request.input_image_data)} bytes"
         )
 
         # No explicit Content-Type: httpx sets the multipart boundary.
-        result = await self._post_job(
+        result = await self._post_video(
             data=data, files=files, headers=self._auth_headers()
         )
         return result["id"]
 
-    async def _post_job(
+    async def _post_video(
         self,
         headers: dict[str, str],
         json_body: dict[str, Any] | None = None,
         data: dict[str, str] | None = None,
         files: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """POST a create-job request and return the parsed JSON body."""
+        """POST a create-video request and return the parsed JSON body."""
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
-                    self._jobs_url(),
+                    self._videos_url(),
                     headers=headers,
                     json=json_body,
                     data=data,
@@ -266,13 +239,14 @@ class AzureOpenAIService:
 
     # -------------------------------------------------------------------- poll
 
-    async def _poll_job(self, video_id: str, job_id: str) -> None:
-        """Poll the Azure job until it reaches a terminal state."""
+    async def _poll_video(self, video_id: str, remote_id: str) -> None:
+        """Poll the remote video until it reaches a terminal state."""
         max_polls = 120  # ~20 minutes at 10s intervals
         poll_count = 0
 
         logger.info(
-            f"Starting to poll video status - Video ID: {video_id}, Job ID: {job_id}"
+            f"Starting to poll video status - Video ID: {video_id}, "
+            f"Remote ID: {remote_id}"
         )
 
         while poll_count < max_polls:
@@ -282,37 +256,44 @@ class AzureOpenAIService:
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     response = await client.get(
-                        self._job_url(job_id), headers=self._auth_headers()
+                        self._video_url(remote_id), headers=self._auth_headers()
                     )
                     response.raise_for_status()
                     body = response.json()
             except Exception as e:
                 logger.error(
                     f"Error polling video status - Video ID: {video_id}, "
-                    f"Job ID: {job_id}, Error type: {type(e).__name__}, Error: {e}"
+                    f"Remote ID: {remote_id}, Error type: {type(e).__name__}, "
+                    f"Error: {e}"
                 )
                 self.video_jobs[video_id].status = "failed"
                 self.video_jobs[video_id].progress = 0
                 self.history.update_entry(video_id, status="failed")
                 break
 
-            azure_status = body.get("status", "queued")
-            status = _normalize_status(azure_status)
+            provider_status = body.get("status", "queued")
+            status = _normalize_status(provider_status)
             self.video_jobs[video_id].status = status
 
             logger.info(
                 f"Video status update - Video ID: {video_id}, "
-                f"Status: {status} ({azure_status}), Poll: {poll_count}"
+                f"Status: {status} ({provider_status}), Poll: {poll_count}"
             )
 
             if status == "queued":
                 self.video_jobs[video_id].progress = 20
             elif status == "in_progress":
-                self.video_jobs[video_id].progress = min(20 + poll_count * 2, 90)
+                # Use the provider's progress if present, else interpolate.
+                provider_progress = body.get("progress")
+                self.video_jobs[video_id].progress = (
+                    int(provider_progress)
+                    if isinstance(provider_progress, (int, float))
+                    else min(20 + poll_count * 2, 90)
+                )
             elif status == "completed":
                 self.video_jobs[video_id].progress = 100
                 logger.info(f"Video generation completed - Video ID: {video_id}")
-                await self._download_and_save(video_id, body)
+                await self._download_and_save(video_id, remote_id)
                 break
             elif status in ("failed", "cancelled"):
                 self.video_jobs[video_id].progress = 0
@@ -320,19 +301,12 @@ class AzureOpenAIService:
                 logger.error(f"Video generation {status} - Video ID: {video_id}")
                 break
 
-    async def _download_and_save(self, video_id: str, job_body: dict[str, Any]) -> None:
+    async def _download_and_save(self, video_id: str, remote_id: str) -> None:
         """Download the finished video and persist it to disk + history."""
         try:
-            generations = job_body.get("generations") or []
-            if not generations:
-                raise ValueError("Job succeeded but returned no generations")
-
-            generation_id = generations[0]["id"]
-            self.video_jobs[video_id].azure_generation_id = generation_id
-
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.get(
-                    self._download_url(generation_id), headers=self._auth_headers()
+                    self._content_url(remote_id), headers=self._auth_headers()
                 )
                 response.raise_for_status()
                 video_content = response.content
@@ -348,7 +322,7 @@ class AzureOpenAIService:
             )
             logger.info(
                 f"Video downloaded and saved - Video ID: {video_id}, "
-                f"Generation ID: {generation_id}, Size: {file_size} bytes"
+                f"Remote ID: {remote_id}, Size: {file_size} bytes"
             )
         except Exception as e:
             logger.error(f"Error downloading video - Video ID: {video_id}, Error: {e}")

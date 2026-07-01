@@ -38,22 +38,24 @@ A production-ready, containerized web server that connects to Azure OpenAI's Sor
 
 ### Endpoint configuration
 
-Point `AZURE_OPENAI_ENDPOINT` at your resource root only. Foundry shows several URLs in
-different places — **use the base resource URL**, not a pre-built `/openai/...` path. The app
-always calls the canonical Sora 2 REST surface (api-version `preview`):
+Point `AZURE_OPENAI_ENDPOINT` at your resource root only (the base URL, e.g.
+`https://your-instance.services.ai.azure.com`). Foundry shows several URLs in different
+places — **use the base resource URL**, not a pre-built `/videos` path. The app targets the
+OpenAI-compatible Sora 2 **/videos** surface, authenticating with `Authorization: Bearer`:
 
-- Create: `POST {endpoint}/openai/v1/video/generations/jobs?api-version=preview`
-- Poll:   `GET  {endpoint}/openai/v1/video/generations/jobs/{job_id}?api-version=preview`
-- Download: `GET {endpoint}/openai/v1/video/generations/{generation_id}/content/video?api-version=preview`
+- Create: `POST {endpoint}/videos` — body `{"prompt","model","size","seconds"}`
+- Poll:   `GET  {endpoint}/videos/{id}`
+- Download: `GET {endpoint}/videos/{id}/content`
 
 ```bash
-export AZURE_OPENAI_ENDPOINT="https://your-instance.openai.azure.com"
+export AZURE_OPENAI_ENDPOINT="https://your-instance.services.ai.azure.com"
 export AZURE_OPENAI_API_KEY="your-api-key"
-export AZURE_OPENAI_DEPLOYMENT="sora-2"
+export AZURE_OPENAI_DEPLOYMENT="sora-2"   # must match your deployment name in Foundry
 ```
 
-A trailing slash or an accidental `/openai/...` suffix on the endpoint is tolerated and
-stripped automatically.
+A trailing slash or an accidental `/videos` / `/openai/...` suffix on the endpoint is
+tolerated and stripped automatically. `AZURE_OPENAI_DEPLOYMENT` is sent as the `model` and
+**must match the deployment name** in Foundry → Deployments.
 
 ## 🏗️ Installation & Setup
 
@@ -203,12 +205,12 @@ This application uses the Azure OpenAI Sora 2 API, which provides the following 
   - Supported formats: JPEG, PNG, WebP
   - Resolution must match the selected video resolution exactly
   - Used as a visual anchor for the first frame
-- **REST surface** (api-version `preview`):
-  - `POST /openai/v1/video/generations/jobs` — start a job
-  - `GET  /openai/v1/video/generations/jobs/{job_id}` — poll status
-  - `GET  /openai/v1/video/generations/{generation_id}/content/video` — download
-- **Azure job statuses**: `queued`, `preprocessing`, `running`, `processing`, `succeeded`,
-  `failed`, `cancelled` — normalized internally to
+- **REST surface** (OpenAI-compatible `/videos`, `Authorization: Bearer`):
+  - `POST /videos` — create a video (`prompt`, `model`, `size`, `seconds`)
+  - `GET  /videos/{id}` — poll status/progress
+  - `GET  /videos/{id}/content` — download the mp4
+- **Statuses**: `queued`, `in_progress`, `completed`, `failed`, `cancelled` (plus
+  `preprocessing`/`running`/`succeeded` tolerated) — normalized internally to
   `queued` / `in_progress` / `completed` / `failed` / `cancelled`.
 
 For more information, see the [Microsoft documentation](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/video-generation?pivots=rest-api).
