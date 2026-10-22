@@ -1,0 +1,462 @@
+{
+  "schema_version": "1.0",
+  "repository": "azure-openai-sora-2-webserver",
+  "identity": {
+    "description": "A production-ready, containerized web server that connects to Azure OpenAI's Sora 2 model to generate videos. This application provides both a modern web interface and RESTful API endpoints for video generation.",
+    "default_branch": "main",
+    "languages": {
+      "Python": 13,
+      "Shell": 2
+    },
+    "topics": [],
+    "licence": "",
+    "file_count": 28
+  },
+  "start_here": {
+    "readme": "README.md",
+    "agents_md": "AGENTS.md",
+    "entry_points": [
+      "app/main.py",
+      "entrypoint.sh"
+    ],
+    "decision_records": [],
+    "build_config": [
+      "pyproject.toml",
+      "requirements.txt"
+    ],
+    "source_roots": [
+      "app",
+      "."
+    ]
+  },
+  "documentation": [
+    {
+      "path": ".github/copilot-instructions.md",
+      "title": "Copilot instructions — azure-openai-sora-2-webserver",
+      "lines": 27,
+      "headings": [
+        {
+          "level": 2,
+          "text": "What this repo is",
+          "anchor": "what-this-repo-is"
+        },
+        {
+          "level": 2,
+          "text": "Repo shape",
+          "anchor": "repo-shape"
+        },
+        {
+          "level": 2,
+          "text": "Conventions",
+          "anchor": "conventions"
+        },
+        {
+          "level": 2,
+          "text": "Never",
+          "anchor": "never"
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "title": "Azure OpenAI Sora 2 Video Generator Web Server",
+      "lines": 234,
+      "headings": [
+        {
+          "level": 2,
+          "text": "📸 Screenshots",
+          "anchor": "-screenshots"
+        },
+        {
+          "level": 2,
+          "text": "🚀 Features",
+          "anchor": "-features"
+        },
+        {
+          "level": 2,
+          "text": "📋 Requirements",
+          "anchor": "-requirements"
+        },
+        {
+          "level": 2,
+          "text": "🔧 Environment Variables",
+          "anchor": "-environment-variables"
+        },
+        {
+          "level": 3,
+          "text": "Endpoint configuration",
+          "anchor": "endpoint-configuration"
+        },
+        {
+          "level": 2,
+          "text": "🏗️ Installation & Setup",
+          "anchor": "-installation--setup"
+        },
+        {
+          "level": 3,
+          "text": "Docker Deployment",
+          "anchor": "docker-deployment"
+        },
+        {
+          "level": 3,
+          "text": "Using Docker Compose",
+          "anchor": "using-docker-compose"
+        },
+        {
+          "level": 2,
+          "text": "🎯 Usage",
+          "anchor": "-usage"
+        },
+        {
+          "level": 3,
+          "text": "Web Interface",
+          "anchor": "web-interface"
+        },
+        {
+          "level": 3,
+          "text": "MCP Server (batch jobs from another system)",
+          "anchor": "mcp-server-batch-jobs-from-another-system"
+        },
+        {
+          "level": 2,
+          "text": "🐛 Troubleshooting",
+          "anchor": "-troubleshooting"
+        },
+        {
+          "level": 3,
+          "text": "Volume Permission Issues",
+          "anchor": "volume-permission-issues"
+        },
+        {
+          "level": 2,
+          "text": "📄 License",
+          "anchor": "-license"
+        },
+        {
+          "level": 2,
+          "text": "🙏 Acknowledgments",
+          "anchor": "-acknowledgments"
+        },
+        {
+          "level": 2,
+          "text": "📝 Sora 2 API Notes",
+          "anchor": "-sora-2-api-notes"
+        }
+      ]
+    },
+    {
+      "path": "pull-requests/1-close-comment.md",
+      "title": "1 Close Comment",
+      "lines": 1,
+      "headings": []
+    }
+  ],
+  "code": {
+    "source_roots": [
+      "app",
+      "."
+    ],
+    "symbol_source": "repomix (tree-sitter signatures)",
+    "routes": [],
+    "files": [
+      {
+        "path": "app/main.py",
+        "symbols": [
+          {
+            "kind": "function",
+            "name": "lifespan",
+            "parent": "",
+            "signature": "lifespan(app: FastAPI)"
+          },
+          {
+            "kind": "route",
+            "name": "root",
+            "parent": "",
+            "signature": "@app.get(\"/\") -> root()"
+          },
+          {
+            "kind": "route",
+            "name": "get_video_status",
+            "parent": "",
+            "signature": "@app.get(\"/status/{video_id}\", response_model=VideoStatus) -> get_video_status(video_id: str)"
+          },
+          {
+            "kind": "route",
+            "name": "health_check",
+            "parent": "",
+            "signature": "@app.get(\"/health\") -> health_check()"
+          },
+          {
+            "kind": "route",
+            "name": "version",
+            "parent": "",
+            "signature": "@app.get(\"/version\") -> version()"
+          },
+          {
+            "kind": "route",
+            "name": "get_history",
+            "parent": "",
+            "signature": "@app.get(\"/history\", response_model=list[VideoHistoryEntry]) -> get_history()"
+          },
+          {
+            "kind": "route",
+            "name": "get_video",
+            "parent": "",
+            "signature": "@app.get(\"/videos/{video_id}\") -> get_video(video_id: str)"
+          },
+          {
+            "kind": "route",
+            "name": "retry_video",
+            "parent": "",
+            "signature": "@app.post(\"/retry/{video_id}\") -> retry_video(video_id: str)"
+          },
+          {
+            "kind": "route",
+            "name": "delete_video",
+            "parent": "",
+            "signature": "@app.delete(\"/history/{video_id}\") -> delete_video(video_id: str)"
+          }
+        ]
+      },
+      {
+        "path": "app/mcp_server.py",
+        "symbols": [
+          {
+            "kind": "function",
+            "name": "set_azure_service",
+            "parent": "",
+            "signature": "set_azure_service(service) -> None"
+          },
+          {
+            "kind": "function",
+            "name": "get_video_status",
+            "parent": "",
+            "signature": "get_video_status(video_id: str) -> dict"
+          },
+          {
+            "kind": "function",
+            "name": "list_history",
+            "parent": "",
+            "signature": "list_history() -> list[dict]"
+          },
+          {
+            "kind": "function",
+            "name": "retry_video",
+            "parent": "",
+            "signature": "retry_video(video_id: str) -> dict"
+          },
+          {
+            "kind": "function",
+            "name": "delete_video",
+            "parent": "",
+            "signature": "delete_video(video_id: str) -> dict"
+          },
+          {
+            "kind": "function",
+            "name": "download_video",
+            "parent": "",
+            "signature": "download_video(video_id: str, include_bytes: bool = False) -> dict"
+          },
+          {
+            "kind": "class",
+            "name": "BearerAuthMiddleware",
+            "parent": "",
+            "signature": "class BearerAuthMiddleware(BaseHTTPMiddleware)"
+          },
+          {
+            "kind": "function",
+            "name": "dispatch",
+            "parent": "BearerAuthMiddleware",
+            "signature": "dispatch(self, request: Request, call_next)"
+          },
+          {
+            "kind": "function",
+            "name": "build_mcp_app",
+            "parent": "",
+            "signature": "build_mcp_app()"
+          }
+        ]
+      },
+      {
+        "path": "app/models.py",
+        "symbols": [
+          {
+            "kind": "class",
+            "name": "VideoResolution",
+            "parent": "",
+            "signature": "class VideoResolution(StrEnum)"
+          },
+          {
+            "kind": "class",
+            "name": "VideoGenerationRequest",
+            "parent": "",
+            "signature": "class VideoGenerationRequest(BaseModel)"
+          },
+          {
+            "kind": "function",
+            "name": "validate_seconds",
+            "parent": "VideoGenerationRequest",
+            "signature": "validate_seconds(cls, v: int) -> int"
+          },
+          {
+            "kind": "function",
+            "name": "duration",
+            "parent": "VideoGenerationRequest",
+            "signature": "duration(self) -> int"
+          },
+          {
+            "kind": "class",
+            "name": "VideoStatus",
+            "parent": "",
+            "signature": "class VideoStatus(BaseModel)"
+          },
+          {
+            "kind": "class",
+            "name": "VideoHistoryEntry",
+            "parent": "",
+            "signature": "class VideoHistoryEntry(BaseModel)"
+          }
+        ]
+      },
+      {
+        "path": "app/services/azure_openai.py",
+        "symbols": [
+          {
+            "kind": "class",
+            "name": "AzureOpenAIService",
+            "parent": "",
+            "signature": "class AzureOpenAIService"
+          },
+          {
+            "kind": "function",
+            "name": "retry_video",
+            "parent": "AzureOpenAIService",
+            "signature": "retry_video(self, video_id: str) -> bool"
+          },
+          {
+            "kind": "function",
+            "name": "get_video_status",
+            "parent": "AzureOpenAIService",
+            "signature": "get_video_status(self, video_id: str) -> VideoStatus | None"
+          },
+          {
+            "kind": "function",
+            "name": "cleanup_old_jobs",
+            "parent": "AzureOpenAIService",
+            "signature": "cleanup_old_jobs(self, max_jobs: int = 50) -> None"
+          }
+        ]
+      },
+      {
+        "path": "app/services/history.py",
+        "symbols": [
+          {
+            "kind": "function",
+            "name": "sanitize_filename",
+            "parent": "",
+            "signature": "sanitize_filename(name: str | None) -> str | None"
+          },
+          {
+            "kind": "class",
+            "name": "HistoryService",
+            "parent": "",
+            "signature": "class HistoryService"
+          },
+          {
+            "kind": "function",
+            "name": "reset_entry",
+            "parent": "HistoryService",
+            "signature": "reset_entry(self, video_id: str) -> None"
+          },
+          {
+            "kind": "function",
+            "name": "save_input_image",
+            "parent": "HistoryService",
+            "signature": "save_input_image(self, video_id: str, content: bytes) -> str"
+          },
+          {
+            "kind": "function",
+            "name": "get_input_image",
+            "parent": "HistoryService",
+            "signature": "get_input_image(self, video_id: str) -> bytes | None"
+          },
+          {
+            "kind": "function",
+            "name": "get_entry",
+            "parent": "HistoryService",
+            "signature": "get_entry(self, video_id: str) -> VideoHistoryEntry | None"
+          },
+          {
+            "kind": "function",
+            "name": "get_all_entries",
+            "parent": "HistoryService",
+            "signature": "get_all_entries(self) -> list[VideoHistoryEntry]"
+          },
+          {
+            "kind": "function",
+            "name": "get_video_path",
+            "parent": "HistoryService",
+            "signature": "get_video_path(self, video_id: str) -> Path | None"
+          },
+          {
+            "kind": "function",
+            "name": "get_download_name",
+            "parent": "HistoryService",
+            "signature": "get_download_name(self, video_id: str) -> str"
+          },
+          {
+            "kind": "function",
+            "name": "save_video",
+            "parent": "HistoryService",
+            "signature": "save_video(self, video_id: str, content: bytes) -> str"
+          },
+          {
+            "kind": "function",
+            "name": "delete_entry",
+            "parent": "HistoryService",
+            "signature": "delete_entry(self, video_id: str) -> bool"
+          }
+        ]
+      },
+      {
+        "path": "entrypoint.sh",
+        "symbols": [
+          {
+            "kind": "function",
+            "name": "setup_directories",
+            "parent": "",
+            "signature": "setup_directories()"
+          }
+        ]
+      }
+    ]
+  },
+  "tests": [
+    "test_complete_implementation.sh",
+    "tests/conftest.py",
+    "tests/test_azure_openai.py",
+    "tests/test_fastapi.py",
+    "tests/test_history.py",
+    "tests/test_integration.py",
+    "tests/test_mcp.py"
+  ],
+  "operations": [
+    ".dockerignore",
+    ".github/workflows/ci-cd.yml",
+    "Dockerfile"
+  ],
+  "limitations": {
+    "unparsed_languages": [
+      "Shell"
+    ],
+    "excluded_dirs": [],
+    "code_map_truncated": false,
+    "code_map_symbols_capped": false,
+    "tracked_files_only": true
+  },
+  "generated": {
+    "source_commit": "825201d545a1443239a670f33b9c04005dbdde2b",
+    "content_hash": "6113514b2b253c04",
+    "generator": "navgen"
+  }
+}
