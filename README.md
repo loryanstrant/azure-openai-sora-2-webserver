@@ -197,6 +197,14 @@ Directory /app/data is writable
 Starting application as root...
 ```
 
+## 🏠 Homelab Deployment Notes
+
+This instance runs in the loryanstrant homelab as the Dockhand stack **`azure-openai-sora-webserver`** on host **SOUNDWAVE**, built from this repo's `ghcr.io/loryanstrant/azure-openai-sora-2-webserver:latest` image. Measured 2026-07-11: published at `http://soundwave.strant.casa:8555` (host port 8555 → container port 8000) — re-verify the host and port before relying on them, since homelab layouts move.
+
+**Deploy flow:** push to Gitea on this repo → force the Gitea→GitHub push-mirror sync → GitHub Actions builds and publishes the `:latest` tag to GHCR → redeploy the Dockhand stack to pick it up. After a redeploy, this app's own `GET /version` endpoint is often a more direct "did the build actually land" signal than polling the Actions run.
+
+**GitHub API calls** (e.g. checking Actions status from a script) should use an authenticated PAT rather than the unauthenticated API (60 requests/hour limit) — reference the credential by its Vaultwarden item name only, never by value.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
