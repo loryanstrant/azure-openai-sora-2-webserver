@@ -60,7 +60,7 @@
     {
       "path": "README.md",
       "title": "Azure OpenAI Sora 2 Video Generator Web Server",
-      "lines": 234,
+      "lines": 242,
       "headings": [
         {
           "level": 2,
@@ -126,6 +126,11 @@
           "level": 3,
           "text": "Volume Permission Issues",
           "anchor": "volume-permission-issues"
+        },
+        {
+          "level": 2,
+          "text": "🏠 Homelab Deployment Notes",
+          "anchor": "-homelab-deployment-notes"
         },
         {
           "level": 2,
@@ -455,8 +460,8 @@
     "tracked_files_only": true
   },
   "generated": {
-    "source_commit": "825201d545a1443239a670f33b9c04005dbdde2b",
-    "content_hash": "6113514b2b253c04",
+    "source_commit": "f52fd14551f51988387945c7e8c81e728ad6f6e8",
+    "content_hash": "b9df75bc627a3976",
     "generator": "navgen"
   }
 }
